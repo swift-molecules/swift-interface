@@ -27,10 +27,6 @@ let package = Package(
         .target(
             name: "Interface Macro Core",
             dependencies: [
-                .product(name: "Coproduct Macro Core", package: "swift-coproduct"),
-                .product(name: "Eliminator Macro Core", package: "swift-coproduct"),
-                .product(name: "Prism Macro Core", package: "swift-optic"),
-                .product(name: "Fold Macro Core", package: "swift-optic"),
                 .product(name: "Product Macro Core", package: "swift-product"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
@@ -50,8 +46,12 @@ let package = Package(
             name: "Interface Macro",
             dependencies: [
                 "Interface Macro Plugin",
+                .product(name: "Eliminator Macro", package: "swift-coproduct"),
+                .product(name: "Fold Macro", package: "swift-optic"),
                 .product(name: "Operation", package: "swift-operation"),
                 .product(name: "Optic", package: "swift-optic"),
+                .product(name: "Prism Macro", package: "swift-optic"),
+                .product(name: "Product Macro", package: "swift-product"),
             ]
         ),
         .testTarget(

@@ -1,8 +1,4 @@
 public import SwiftSyntax
-import Coproduct_Macro_Core
-import Eliminator_Macro_Core
-import Fold_Macro_Core
-import Prism_Macro_Core
 import Product_Macro_Core
 import SwiftSyntaxBuilder
 
@@ -209,7 +205,9 @@ extension Interface {
             // The coproduct is generic in its summands so that the compiler, not a
             // syntax macro, decides whether a Call is Copyable: @Structural adds
             // `Copyable` exactly when every summand is. Leaves bind the parameter to
-            // the operation's Application, children to the child's Call.
+            // the operation's Application, children to the child's Call. Its
+            // algebra (prisms, folds, eliminator) is not derived here: the enum
+            // carries the atom macros that own those derivations.
             //
             // Call remains Escapable because its canonical generated prisms return
             // both Call and Application from stored escaping arrows. Swift 6.4
@@ -264,19 +262,6 @@ extension Interface {
                     """
             }.joined(separator: "\n")
 
-            let coproduct = Coproduct.Analysis(
-                whole: TypeSyntax(IdentifierTypeSyntax(name: .identifier("Coproduct"))),
-                access: access,
-                cases: cases,
-                genericParameter: nil,
-                isCopyableSuppressed: true
-            )
-            let algebra = Prism.Derivation.expansion(coproduct)
-                + Fold.Derivation.expansion(coproduct)
-                + Eliminator.Derivation.expansion(coproduct)
-            let members = algebra.map {
-                $0.trimmedDescription
-            }.joined(separator: "\n\n")
             let caseProperties = summands.map { summand in
                 """
                     \(accessSpelling)var \(summand.name.text): Optic<Coproduct, Coproduct, \(summand.parameter), \(summand.parameter)>.Case {
@@ -296,12 +281,13 @@ extension Interface {
             return [
                 DeclSyntax(stringLiteral: """
                     @Structural
+                    @Prisms
+                    @Folds
+                    @Eliminator
                     \(accessSpelling)enum Coproduct<\(parameters)>: ~Copyable, Operation::Operation.Coproduct {
                     \(caseDeclarations)
 
                     \(constructors)
-
-                    \(members)
 
                     \(caseNamespace)
                     }

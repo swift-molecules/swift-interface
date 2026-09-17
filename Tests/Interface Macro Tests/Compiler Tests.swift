@@ -118,11 +118,18 @@ private struct `Compiler Tests` {
             "-I", products.path,
             "-I", products.appendingPathComponent("Modules").path,
             "-F", products.appendingPathComponent("PackageFrameworks").path,
-            "-Xfrontend", "-load-plugin-executable",
-            "-Xfrontend",
-            products.appendingPathComponent(
-                "Interface Macro Plugin#Interface_Macro_Plugin"
-            ).path,
+        ] + [
+            "Interface Macro Plugin#Interface_Macro_Plugin",
+            "Product Macro Plugin#Product_Macro_Plugin",
+            "Prism Macro Plugin#Prism_Macro_Plugin",
+            "Fold Macro Plugin#Fold_Macro_Plugin",
+            "Eliminator Macro Plugin#Eliminator_Macro_Plugin",
+        ].flatMap { plugin in
+            [
+                "-Xfrontend", "-load-plugin-executable",
+                "-Xfrontend", products.appendingPathComponent(plugin).path,
+            ]
+        } + [
             fixture.path,
         ]
         process.standardError = standardError
