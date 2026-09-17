@@ -40,12 +40,12 @@ private func useGeneric<Root: Store.Root.`Protocol`>(_ root: Root) throws(Store.
 @Suite
 private struct `Wrapper Tests` {
     let items = Store.Items(
-        add: { item throws(Store.Failure) in
-            guard !item.value.isEmpty else { throw .missing }
-            return item.value.count
+        add: { request throws(Store.Failure) in
+            guard !request.item.value.isEmpty else { throw .missing }
+            return request.item.value.count
         },
-        remove: { _, _ in },
-        count: { 3 }
+        remove: { _ in },
+        count: { _ in 3 }
     )
 
     @Test
@@ -66,6 +66,16 @@ private struct `Wrapper Tests` {
         let add = items[keyPath: \.add]
 
         #expect(try add(.init(value: "Blob")) == 4)
+    }
+
+    @Test
+    func `each operation carries its request as data and its result by name`() throws {
+        let request = Store.Items.Add.Request(.init(value: "Blob"))
+        let result: Store.Items.Add.Result = try items.add(request)
+
+        #expect(request.item == .init(value: "Blob"))
+        #expect(result == 4)
+        #expect(Store.Items.Remove.Request(.init(value: "a"), replacement: .init(value: "b")).replacement == .init(value: "b"))
     }
 
     @Test

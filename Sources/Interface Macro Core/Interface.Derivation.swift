@@ -25,7 +25,9 @@ extension Interface {
                 "\(access)var \(child.name.text): \(child.domain.trimmedDescription)"
             }
             let parameters = signature.coordinates.map { coordinate in
-                "\(coordinate.name.text): @escaping \(coordinate.function.closureType.trimmedDescription)"
+                let effects = coordinate.function.declaration.signature.effectSpecifiers
+                    .map { " \($0.trimmedDescription)" } ?? ""
+                return "\(coordinate.name.text): @escaping (\(owner).\(coordinate.symbol.text).Request)\(effects) -> \(coordinate.output.trimmedDescription)"
             } + signature.children.map { child in
                 "\(child.name.text): \(child.domain.trimmedDescription)"
             }
@@ -74,29 +76,89 @@ extension Interface {
         ) -> [DeclSyntax] {
             let function = coordinate.function
             let name = function.name.text
-            let closure = function.closureType.trimmedDescription
-            let arguments = function.parameters.map(\.forwardingExpression.trimmedDescription)
-                .joined(separator: ", ")
+            let symbol = coordinate.symbol.text
+            let request = "\(owner).\(symbol).Request"
+            let output = coordinate.output.trimmedDescription
             let effects = function.declaration.signature.effectSpecifiers
+            let effectSpelling = effects.map { " \($0.trimmedDescription)" } ?? ""
+            let arrow = "(\(request))\(effectSpelling) -> \(output)"
             let prefix = (effects?.throwsClause != nil ? "try " : "")
                 + (effects?.asyncSpecifier != nil ? "await " : "")
+            let isGeneric = function.declaration.genericParameterClause != nil
+            let generics = isGeneric
+                ? coordinate.inputs.map { input in
+                    let local = input.parameter.localName.text
+                    return "\(local.prefix(1).uppercased())\(local.dropFirst())"
+                }
+                : coordinate.inputs.map(\.type.trimmedDescription)
+            let clause = isGeneric && !generics.isEmpty ? "<\(generics.joined(separator: ", "))>" : ""
+            let binding = isGeneric && !generics.isEmpty
+                ? "<\(coordinate.inputs.map(\.type.trimmedDescription).joined(separator: ", "))>"
+                : ""
+            let data = isGeneric
+                ? """
+                    @Value
+                    \(access)struct Product\(clause) {
+                    """
+                : """
+                    \(access)struct Request: Swift.Hashable, Swift.Sendable {
+                    """
+            let alias = isGeneric ? "\(access)typealias Request = Product\(binding)" : ""
+            let fields = zip(coordinate.inputs, generics).map { input, generic in
+                "\(access)let \(input.parameter.localName.text): \(generic)"
+            }.joined(separator: "\n")
+            let requestParameters = zip(coordinate.inputs, generics).map { input, generic in
+                let declaration = input.parameter.declaration
+                let label = declaration.firstName.tokenKind == .wildcard ? "_" : declaration.firstName.text
+                let local = input.parameter.localName.text
+                return label == local
+                    ? "\(local): \(generic)"
+                    : "\(label) \(local): \(generic)"
+            }.joined(separator: ", ")
+            let requestAssignments = coordinate.inputs.map { input in
+                "self.\(input.parameter.localName.text) = \(input.parameter.localName.text)"
+            }.joined(separator: "\n")
+            let construction = coordinate.inputs.map { input in
+                let declaration = input.parameter.declaration
+                let label = declaration.firstName.tokenKind == .wildcard ? "" : "\(declaration.firstName.text): "
+                return "\(label)\(input.expression.trimmedDescription)"
+            }.joined(separator: ", ")
             let statement = function.returnsVoid
-                ? "\(prefix)run(\(arguments))"
-                : "return \(prefix)run(\(arguments))"
+                ? "\(prefix)run(\(request)(\(construction)))"
+                : "return \(prefix)run(\(request)(\(construction)))"
+            let forwarding = function.returnsVoid
+                ? "\(prefix)run(request)"
+                : "return \(prefix)run(request)"
             let witness = function.returnsVoid
-                ? "\(prefix)self.\(name).run(\(arguments))"
-                : "return \(prefix)self.\(name).run(\(arguments))"
+                ? "\(prefix)self.\(name).run(\(request)(\(construction)))"
+                : "return \(prefix)self.\(name).run(\(request)(\(construction)))"
             return [
                 DeclSyntax(stringLiteral: """
-                    \(access)struct \(coordinate.symbol.text) {
-                        \(access)let run: \(closure)
+                    \(access)struct \(symbol) {
+                        \(data)
+                        \(fields)
 
-                        \(access)init(_ run: @escaping \(closure)) {
+                            \(access)init(\(requestParameters)) {
+                            \(requestAssignments)
+                            }
+                        }
+
+                        \(alias)
+
+                        \(access)typealias Result = \(output)
+
+                        \(access)let run: \(arrow)
+
+                        \(access)init(_ run: @escaping \(arrow)) {
                             self.run = run
                         }
 
                         \(access)func callAsFunction\(function.declaration.signature.trimmedDescription) {
                             \(statement)
+                        }
+
+                        \(access)func callAsFunction(_ request: \(request))\(effectSpelling) -> \(output) {
+                            \(forwarding)
                         }
                     }
                     """),

@@ -193,25 +193,21 @@ extension Interface {
             var usedDomains: Set<String> = []
             var recognizedChildren: [Child] = []
             for property in product.propertyCoordinates {
-                guard
+                if
                     let associated = property.type.as(IdentifierTypeSyntax.self),
                     associated.moduleSelector == nil,
                     associated.genericArgumentClause == nil,
                     let domain = domains[associated.name.text]
-                else {
-                    reasons.append(
-                        "`\(property.declaration.trimmedDescription)` does not expose a declared child signature"
+                {
+                    usedDomains.insert(associated.name.text)
+                    recognizedChildren.append(
+                        Child(declaration: property.declaration, name: property.name, domain: domain)
                     )
-                    continue
+                } else {
+                    recognizedChildren.append(
+                        Child(declaration: property.declaration, name: property.name, domain: property.type.trimmed)
+                    )
                 }
-                usedDomains.insert(associated.name.text)
-                recognizedChildren.append(
-                    Child(
-                        declaration: property.declaration,
-                        name: property.name,
-                        domain: domain
-                    )
-                )
             }
             for coordinate in product.associatedTypeCoordinates
             where !usedDomains.contains(coordinate.name.text) {
@@ -228,7 +224,7 @@ extension Interface {
                 associated.declaration.inheritanceClause?.inheritedTypes.count == 1,
                 let inherited = associated.constraint,
                 let semantic = inherited.as(MemberTypeSyntax.self),
-                ["Protocol", "`Protocol`"].contains(semantic.name.text),
+                ["Interface", "`Interface`", "Protocol", "`Protocol`"].contains(semantic.name.text),
                 semantic.genericArgumentClause == nil
             else { return nil }
             return semantic.baseType

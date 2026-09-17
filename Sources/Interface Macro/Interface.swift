@@ -13,3 +13,9 @@ public macro Structural() = #externalMacro(
     module: "Interface_Macro_Plugin",
     type: "Structural"
 )
+
+@attached(extension, conformances: Equatable, Hashable, Comparable, Encodable, Decodable, Sendable, names: named(<), named(CodingKeys), named(encode(to:)), named(init(from:)))
+public macro Value() = #externalMacro(
+    module: "Interface_Macro_Plugin",
+    type: "Value"
+)

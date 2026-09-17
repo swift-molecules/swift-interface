@@ -29,6 +29,90 @@ public struct Structural: ExtensionMacro {
     }
 }
 
+public struct Value: ExtensionMacro {
+    public static func expansion(
+        of _: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingExtensionsOf type: some TypeSyntaxProtocol,
+        conformingTo _: [TypeSyntax],
+        in _: some MacroExpansionContext
+    ) throws -> [ExtensionDeclSyntax] {
+        guard let structure = declaration.as(StructDeclSyntax.self) else {
+            throw MacroExpansionErrorMessage(
+                "@Value applies to a struct whose fields are its generic parameters."
+            )
+        }
+        let parameters = structure.genericParameterClause?.parameters.map(\.name.text) ?? []
+        let stored = structure.memberBlock.members.compactMap { member -> (name: String, type: String)? in
+            guard
+                let variable = member.decl.as(VariableDeclSyntax.self),
+                variable.bindings.count == 1,
+                let binding = variable.bindings.first,
+                binding.accessorBlock == nil,
+                let name = binding.pattern.as(IdentifierPatternSyntax.self)?.identifier.text,
+                let type = binding.typeAnnotation?.type.trimmedDescription
+            else { return nil }
+            return (name, type)
+        }
+        let fields = stored.map(\.name)
+        let access = structure.modifiers.first { $0.name.tokenKind == .keyword(.public) || $0.name.tokenKind == .keyword(.package) }
+            .map { "\($0.name.text) " } ?? ""
+        func clause(_ conformance: String) -> String {
+            parameters.isEmpty
+                ? ""
+                : " where \(parameters.map { "\($0): \(conformance)" }.joined(separator: ", "))"
+        }
+        let comparisons = fields.map { field in
+            """
+                if lhs.\(field) != rhs.\(field) {
+                    return lhs.\(field) < rhs.\(field)
+                }
+            """
+        }.joined(separator: "\n")
+        let keys = fields.isEmpty ? "" : "case \(fields.joined(separator: ", "))"
+        let encodes = stored.isEmpty
+            ? "_ = encoder.container(keyedBy: CodingKeys.self)"
+            : "var container = encoder.container(keyedBy: CodingKeys.self)\n"
+                + stored.map { "try container.encode(self.\($0.name), forKey: .\($0.name))" }.joined(separator: "\n")
+        let decodes = stored.isEmpty
+            ? "_ = try decoder.container(keyedBy: CodingKeys.self)"
+            : "let container = try decoder.container(keyedBy: CodingKeys.self)\n"
+                + stored.map { "self.\($0.name) = try container.decode(\($0.type).self, forKey: .\($0.name))" }.joined(separator: "\n")
+        let extensions: [String] = [
+            "extension \(type.trimmed): Swift.Equatable\(clause("Swift.Equatable")) {}",
+            "extension \(type.trimmed): Swift.Hashable\(clause("Swift.Hashable")) {}",
+            "extension \(type.trimmed): Swift.Sendable\(clause("Swift.Sendable")) {}",
+            """
+            extension \(type.trimmed): Swift.Encodable\(clause("Swift.Encodable")) {
+                \(access)enum CodingKeys: Swift.String, Swift.CodingKey {
+                    \(keys)
+                }
+
+                \(access)func encode(to encoder: any Swift.Encoder) throws {
+                    \(encodes)
+                }
+            }
+            """,
+            """
+            extension \(type.trimmed): Swift.Decodable\(clause("Swift.Decodable")) {
+                \(access)init(from decoder: any Swift.Decoder) throws {
+                    \(decodes)
+                }
+            }
+            """,
+            """
+            extension \(type.trimmed): Swift.Comparable\(clause("Swift.Comparable")) {
+                \(access)static func < (lhs: Self, rhs: Self) -> Swift.Bool {
+            \(comparisons)
+                    return false
+                }
+            }
+            """,
+        ]
+        return extensions.compactMap { DeclSyntax(stringLiteral: $0).as(ExtensionDeclSyntax.self) }
+    }
+}
+
 public struct Macro: PeerMacro, MemberMacro, ExtensionMacro {
     public static func expansion(
         of _: AttributeSyntax,
@@ -69,12 +153,12 @@ public struct Macro: PeerMacro, MemberMacro, ExtensionMacro {
         guard let owner = declaration.as(StructDeclSyntax.self) else { return [] }
         guard Self.conformsToSemantic(owner) else {
             throw MacroExpansionErrorMessage(
-                "@Interface requires `\(owner.name.text)` to declare conformance to its own `Protocol`; it is the model of its signature."
+                "@Interface requires `\(owner.name.text)` to declare conformance to its own `Interface`; it is the model of its signature."
             )
         }
         guard let semantic = Self.semantic(of: owner) else {
             throw MacroExpansionErrorMessage(
-                "@Interface on a struct requires a nested semantic protocol named `Protocol`."
+                "@Interface on a struct requires a nested semantic protocol named `Interface`."
             )
         }
         let name = TypeSyntax(IdentifierTypeSyntax(name: owner.name.trimmed))
@@ -102,7 +186,7 @@ public struct Macro: PeerMacro, MemberMacro, ExtensionMacro {
         owner.inheritanceClause?.inheritedTypes.contains { inherited in
             let name = inherited.type.as(MemberTypeSyntax.self)?.name.text
                 ?? inherited.type.as(IdentifierTypeSyntax.self)?.name.text
-            return name.map { $0 == "Protocol" || $0 == "`Protocol`" } ?? false
+            return name.map { ["Interface", "`Interface`", "Protocol", "`Protocol`"].contains($0) } ?? false
         } ?? false
     }
 
@@ -117,7 +201,7 @@ public struct Macro: PeerMacro, MemberMacro, ExtensionMacro {
         let name = spelling.first == "`" && spelling.last == "`"
             ? String(spelling.dropFirst().dropLast())
             : spelling
-        return name == "Protocol"
+        return name == "Interface" || name == "Protocol"
     }
 
     private static func analysis(
