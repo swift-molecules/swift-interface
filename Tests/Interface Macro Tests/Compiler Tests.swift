@@ -4,12 +4,12 @@ import Testing
 @Suite
 private struct `Compiler Tests` {
     @Test
-    func `signature requires a domain namespace`() throws {
-        let diagnostic = try typecheckFailure(named: "Top Level Interface.swift")
+    func `interface must model its own protocol`() throws {
+        let diagnostic = try typecheckFailure(named: "Unmodelled Interface.swift")
 
         #expect(
             diagnostic.contains(
-                "'peer' macros are not allowed to introduce arbitrary names at global scope"
+                "@Interface requires `Greeting` to declare conformance to its own `Interface`"
             )
         )
     }

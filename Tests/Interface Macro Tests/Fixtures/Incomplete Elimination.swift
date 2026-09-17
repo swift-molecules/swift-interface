@@ -1,7 +1,7 @@
 import Interface_Macro
 
-enum Fixture {
-    @Interface
+@Interface
+struct Fixture: Fixture.`Protocol` {
     protocol `Protocol` {
         func first(_ value: Int) -> String
         func second(_ value: Bool) -> Int

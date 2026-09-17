@@ -1,19 +1,19 @@
 import Either
 import Interface_Macro
 
-enum Greeting {
-    struct Name {}
-    struct Message {}
+@Interface
+struct Greeting: Greeting.`Protocol` {
+    struct Name: Hashable {}
+    struct Message: Hashable {}
     enum Failure: Swift.Error {}
 
-    @Interface
     protocol `Protocol` {
         func greet(_ name: Name) throws(Failure) -> Message
     }
 }
 
 enum Counter {
-    struct Value {}
+    struct Value: Hashable {}
 }
 
 let result: Either<Greeting.Operations.Greet.Failure, Greeting.Operations.Greet.Output> =

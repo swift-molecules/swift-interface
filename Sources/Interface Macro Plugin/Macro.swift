@@ -29,41 +29,11 @@ public struct Structural: ExtensionMacro {
     }
 }
 
-public struct Macro: PeerMacro, MemberMacro, ExtensionMacro {
-    public static func expansion(
-        of _: AttributeSyntax,
-        providingPeersOf declaration: some DeclSyntaxProtocol,
-        in context: some MacroExpansionContext
-    ) throws -> [DeclSyntax] {
-        if declaration.is(StructDeclSyntax.self) { return [] }
-        guard let declaration = declaration.as(ProtocolDeclSyntax.self) else {
-            throw MacroExpansionErrorMessage(
-                "@Interface applies to a protocol named `Protocol`, or to the struct that nests it."
-            )
-        }
-        let owner = context.lexicalContext.first.flatMap { syntax -> TypeSyntax? in
-            if let declaration = syntax.as(EnumDeclSyntax.self) {
-                return TypeSyntax(IdentifierTypeSyntax(name: declaration.name))
-            }
-            if let declaration = syntax.as(StructDeclSyntax.self) {
-                return TypeSyntax(IdentifierTypeSyntax(name: declaration.name))
-            }
-            if let declaration = syntax.as(ExtensionDeclSyntax.self) {
-                return declaration.extendedType.trimmed
-            }
-            return nil
-        }
-        guard Self.isSemantic(declaration), let owner else {
-            throw MacroExpansionErrorMessage(
-                "@Interface requires a semantic protocol named `Protocol` nested in its domain namespace."
-            )
-        }
-        return Interface.Derivation.peers(of: try Self.analysis(of: declaration, owner: owner))
-    }
-
+public struct Macro: MemberMacro, ExtensionMacro {
     public static func expansion(
         of _: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
+        conformingTo _: [TypeSyntax],
         in _: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         guard let owner = declaration.as(StructDeclSyntax.self) else { return [] }

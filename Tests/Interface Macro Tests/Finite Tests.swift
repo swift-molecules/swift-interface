@@ -1,12 +1,12 @@
 import Interface_Macro
 import Testing
 
-private enum Finite {
+@Interface
+struct Finite: Finite.`Protocol` {
     enum Failure: Swift.Error {
         case refused
     }
 
-    @Interface
     protocol `Protocol` {
         func first(_ value: Int) -> String
         func second(_ flag: Bool) throws(Failure) -> Int

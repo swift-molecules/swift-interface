@@ -1,27 +1,28 @@
 import Interface_Macro
 import Testing
 
-private enum Greeting {
-    struct Name: Equatable {
+@Interface
+struct Greeting: Greeting.`Protocol` {
+    struct Name: Hashable {
         var value: String
     }
 
-    struct Message: Equatable {
+    struct Message: Hashable {
         var value: String
     }
 
-    @Interface
     protocol `Protocol` {
         func greet(_ name: Name) async -> Message
     }
 }
 
-private enum Counter {
-    struct Limit {
+@Interface
+struct Counter: Counter.`Protocol` {
+    struct Limit: Hashable {
         var value: Int
     }
 
-    struct Value: Equatable {
+    struct Value: Hashable {
         var value: Int
     }
 
@@ -29,14 +30,13 @@ private enum Counter {
         case exceeded
     }
 
-    @Interface
     protocol `Protocol` {
         func increment(limit: Limit) async throws(Error) -> Value
     }
 }
 
-private enum Example {
-    @Interface
+@Interface
+struct Example: Example.`Protocol` {
     protocol `Protocol` {
         associatedtype Greeting: Interface_Macro_Tests::Greeting.`Protocol`
         associatedtype Counter: Interface_Macro_Tests::Counter.`Protocol`
@@ -46,12 +46,12 @@ private enum Example {
     }
 }
 
-private enum Nested {
-    struct Input {}
-    struct Output {}
+@Interface
+struct Nested: Nested.`Protocol` {
+    struct Input: Hashable {}
+    struct Output: Hashable {}
     enum Failure: Swift.Error {}
 
-    @Interface
     protocol `Protocol` {
         func transform(
             _ values: [Input]
@@ -59,8 +59,9 @@ private enum Nested {
     }
 }
 
-private enum Numerals {
-    struct Digit: Equatable {
+@Interface
+struct Numerals: Numerals.`Protocol` {
+    struct Numeral: Hashable {
         var value: Int
     }
 
@@ -68,25 +69,24 @@ private enum Numerals {
         case unreadable
     }
 
-    @Interface
     protocol `Protocol` {
-        func digit(_ digit: Digit) throws(Failure) -> Digit
+        func digit(_ digit: Numeral) throws(Failure) -> Numeral
     }
 }
 
-private enum Linear {
+@Interface
+struct Linear: Linear.`Protocol` {
     struct Token: ~Copyable {
         let value: Int
     }
 
-    @Interface
     protocol `Protocol` {
         func consume(_ token: consuming Token) -> Int
     }
 }
 
-private enum LinearExample {
-    @Interface
+@Interface
+struct LinearExample: LinearExample.`Protocol` {
     protocol `Protocol` {
         associatedtype Linear: Interface_Macro_Tests::Linear.`Protocol`
 
@@ -94,12 +94,12 @@ private enum LinearExample {
     }
 }
 
-private enum LinearPair {
+@Interface
+struct LinearPair: LinearPair.`Protocol` {
     struct Token: ~Copyable {
         let value: Int
     }
 
-    @Interface
     protocol `Protocol` {
         func combine(
             _ first: consuming Token,
@@ -108,15 +108,15 @@ private enum LinearPair {
     }
 }
 
-private enum Observation {
-    @Interface
+@Interface
+struct Observation: Observation.`Protocol` {
     protocol `Protocol` {
         func inspect(_ value: borrowing Int) -> Int
     }
 }
 
-private enum Owned {
-    @Interface
+@Interface
+struct Owned: Owned.`Protocol` {
     protocol `Protocol` {
         func consume(_ value: consuming Int) -> Int
     }
@@ -150,14 +150,14 @@ private func requireEscapable<Value: ~Copyable & Escapable>(_: consuming Value) 
 private func requireCopyable<Value: Copyable>(_: Value) {}
 
 @Suite
-private struct `Domain Tests` {
-    let greeting = Greeting.Product(
-        greet: { .init(value: "Hello, \($0.value)!") }
+struct `Domain Tests` {
+    let greeting = Greeting(
+        greet: { .init(value: "Hello, \($0.name.value)!") }
     )
-    let counter = Counter.Product(
-        increment: { limit throws(Counter.Error) in
-            guard limit.value < 10 else { throw .exceeded }
-            return .init(value: limit.value + 1)
+    let counter = Counter(
+        increment: { request throws(Counter.Error) in
+            guard request.limit.value < 10 else { throw .exceeded }
+            return .init(value: request.limit.value + 1)
         }
     )
 
@@ -330,13 +330,13 @@ private struct `Domain Tests` {
     }
 
     @Test
-    func `a value type and an operation may share a name`() throws {
+    func `a value type nested in the owner stays qualified`() throws {
         let application = Numerals.Operations.Digit.Application(.init(value: 7))
-        let _: Numerals.Digit = application.input
-        let _: Numerals.Operations.Digit.Input.Type = Numerals.Digit.self
-        let _: Numerals.Operations.Digit.Output.Type = Numerals.Digit.self
+        let _: Numerals.Numeral = application.input
+        let _: Numerals.Operations.Digit.Input.Type = Numerals.Numeral.self
+        let _: Numerals.Operations.Digit.Output.Type = Numerals.Numeral.self
         let _: Numerals.Operations.Digit.Failure.Type = Numerals.Failure.self
-        let eliminate = Numerals.Call.Eliminator<Numerals.Digit>(
+        let eliminate = Numerals.Call.Eliminator<Numerals.Numeral>(
             digit: { $0.input }
         )
 
@@ -355,7 +355,7 @@ private struct `Domain Tests` {
     }
 
     @Test
-    func `generated product is the semantic client interpretation`() async {
+    func `the interface struct is the semantic client interpretation`() async {
         let message = await use(greeting, name: .init(value: "Blob"))
         let _: any Greeting.`Protocol` = greeting
 
@@ -363,8 +363,8 @@ private struct `Domain Tests` {
     }
 
     @Test
-    func `root signature composes child algebras and child calls`() async throws {
-        let client = Example.Product(greeting: greeting, counter: counter)
+    func `root interface composes child algebras and child calls`() async throws {
+        let client = Example(greeting: greeting, counter: counter)
         let values = try await use(
             client,
             name: .init(value: "Blob"),
@@ -388,7 +388,7 @@ private struct `Domain Tests` {
 
     @Test
     func `ordinary calls preserve labels and effects`() async throws {
-        let client = Example.Product(greeting: greeting, counter: counter)
+        let client = Example(greeting: greeting, counter: counter)
         let call = Counter.Call.increment(limit: Counter.Limit(value: 2))
         let eliminate = Counter.Call.Eliminator<Counter.Limit>(
             increment: { $0.input }

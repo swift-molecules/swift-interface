@@ -1,7 +1,7 @@
 import Interface_Macro
 
-enum Mutation {
-    @Interface
+@Interface
+struct Mutation: Mutation.`Protocol` {
     protocol `Protocol` {
         func mutate(_ value: inout Int)
     }

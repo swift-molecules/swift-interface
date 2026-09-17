@@ -4,14 +4,6 @@ import SwiftSyntaxBuilder
 
 extension Interface {
     public enum Derivation {
-        public static func peers(of signature: Interface.Analysis) -> [DeclSyntax] {
-            let access = signature.product.access
-            let spelling = access.map { "\($0.name.text) " } ?? ""
-            return Product.Derivation.peers(of: signature.product)
-                + operations(of: signature, access: spelling)
-                + call(of: signature, access: access)
-        }
-
         public static func members(of signature: Interface.Analysis) -> [DeclSyntax] {
             let access = signature.product.access.map { "\($0.name.text) " } ?? ""
             let owner = signature.owner.trimmedDescription
@@ -23,7 +15,8 @@ extension Interface {
             let parameters = signature.coordinates.map { coordinate in
                 let effects = coordinate.function.declaration.signature.effectSpecifiers
                     .map { " \($0.trimmedDescription)" } ?? ""
-                return "\(coordinate.name.text): @escaping (\(owner).\(coordinate.symbol.text).Request)\(effects) -> \(coordinate.output.trimmedDescription)"
+                let ownership = coordinate.inputs.contains { $0.parameter.transfersOwnership } ? "consuming " : ""
+                return "\(coordinate.name.text): @escaping (\(ownership)\(owner).\(coordinate.symbol.text).Request)\(effects) -> \(coordinate.output.trimmedDescription)"
             } + signature.children.map { child in
                 "\(child.name.text): \(child.domain.trimmedDescription)"
             }
@@ -77,7 +70,9 @@ extension Interface {
             let output = coordinate.output.trimmedDescription
             let effects = function.declaration.signature.effectSpecifiers
             let effectSpelling = effects.map { " \($0.trimmedDescription)" } ?? ""
-            let arrow = "(\(request))\(effectSpelling) -> \(output)"
+            let transfers = coordinate.inputs.contains { $0.parameter.transfersOwnership }
+            let requestParameter = transfers ? "consuming \(request)" : request
+            let arrow = "(\(requestParameter))\(effectSpelling) -> \(output)"
             let prefix = (effects?.throwsClause != nil ? "try " : "")
                 + (effects?.asyncSpecifier != nil ? "await " : "")
             let isGeneric = function.declaration.genericParameterClause != nil
@@ -96,9 +91,13 @@ extension Interface {
                     @Value
                     \(access)struct Product\(clause) {
                     """
-                : """
-                    \(access)struct Request: Swift.Hashable, Swift.Sendable {
-                    """
+                : transfers
+                    ? """
+                        \(access)struct Request: ~Copyable {
+                        """
+                    : """
+                        \(access)struct Request: Swift.Hashable, Swift.Sendable {
+                        """
             let alias = isGeneric ? "\(access)typealias Request = Product\(binding)" : ""
             let fields = zip(coordinate.inputs, generics).map { input, generic in
                 "\(access)let \(input.parameter.localName.text): \(generic)"
@@ -107,9 +106,10 @@ extension Interface {
                 let declaration = input.parameter.declaration
                 let label = declaration.firstName.tokenKind == .wildcard ? "_" : declaration.firstName.text
                 let local = input.parameter.localName.text
+                let type = input.parameter.transfersOwnership ? "consuming \(generic)" : generic
                 return label == local
-                    ? "\(local): \(generic)"
-                    : "\(label) \(local): \(generic)"
+                    ? "\(local): \(type)"
+                    : "\(label) \(local): \(type)"
             }.joined(separator: ", ")
             let requestAssignments = coordinate.inputs.map { input in
                 "self.\(input.parameter.localName.text) = \(input.parameter.localName.text)"
@@ -153,7 +153,7 @@ extension Interface {
                             \(statement)
                         }
 
-                        \(access)func callAsFunction(_ request: \(request))\(effectSpelling) -> \(output) {
+                        \(access)func callAsFunction(_ request: \(requestParameter))\(effectSpelling) -> \(output) {
                             \(forwarding)
                         }
                     }

@@ -1,9 +1,9 @@
 import Interface_Macro
 
-enum Linear {
+@Interface
+struct Linear: Linear.`Protocol` {
     struct Token: ~Copyable {}
 
-    @Interface
     protocol `Protocol` {
         func consume(_ token: consuming Token)
     }

@@ -1,9 +1,9 @@
 import Interface_Macro
 
-enum Scoped {
+@Interface
+struct Scoped: Scoped.`Protocol` {
     struct ScopedToken: ~Escapable {}
 
-    @Interface
     protocol `Protocol` {
         func inspect(_ token: consuming ScopedToken)
     }

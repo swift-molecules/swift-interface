@@ -1,8 +1,8 @@
 import Interface_Macro
 import Testing
 
-private enum Store {
-    struct Item: Equatable {
+enum Store {
+    struct Item: Hashable {
         var value: String
     }
 
@@ -13,8 +13,8 @@ private enum Store {
     @Interface
     struct Items: Items.`Protocol` {
         protocol `Protocol` {
-            func add(_ item: Item) throws(Failure) -> Int
-            func remove(_ item: Item, replacement: Item) throws
+            func add(_ item: Store.Item) throws(Store.Failure) -> Int
+            func remove(_ item: Store.Item, replacement: Store.Item) throws
             func count() async -> Int
         }
     }

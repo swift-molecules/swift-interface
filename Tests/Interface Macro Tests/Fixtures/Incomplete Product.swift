@@ -1,11 +1,11 @@
 import Interface_Macro
 
-enum Fixture {
-    @Interface
+@Interface
+struct Fixture: Fixture.`Protocol` {
     protocol `Protocol` {
         func first(_ value: Int) -> String
         func second(_ value: Bool) -> Int
     }
 }
 
-let product = Fixture.Product(first: { String($0) })
+let product = Fixture(first: { String($0.value) })

@@ -1,22 +1,22 @@
 import Either
 import Interface_Macro
 
-enum Greeting {
-    struct Name {}
-    struct Message {}
+@Interface
+struct Greeting: Greeting.`Protocol` {
+    struct Name: Hashable {}
+    struct Message: Hashable {}
 
-    @Interface
     protocol `Protocol` {
         func greet(_ name: Name) -> Message
     }
 }
 
-enum Counter {
-    struct Limit {}
-    struct Value {}
+@Interface
+struct Counter: Counter.`Protocol` {
+    struct Limit: Hashable {}
+    struct Value: Hashable {}
     enum Failure: Swift.Error {}
 
-    @Interface
     protocol `Protocol` {
         func increment(_ limit: Limit) throws(Failure) -> Value
     }

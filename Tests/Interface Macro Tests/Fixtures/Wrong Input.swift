@@ -1,17 +1,17 @@
 import Interface_Macro
 
-enum Greeting {
-    struct Name {}
-    struct Message {}
+@Interface
+struct Greeting: Greeting.`Protocol` {
+    struct Name: Hashable {}
+    struct Message: Hashable {}
 
-    @Interface
     protocol `Protocol` {
         func greet(_ name: Name) -> Message
     }
 }
 
 enum Counter {
-    struct Limit {}
+    struct Limit: Hashable {}
 }
 
 let application: Greeting.Operations.Greet.Application = .init(Counter.Limit())
