@@ -8,16 +8,18 @@ extension Interface {
             let access = signature.product.access.map { "\($0.name.text) " } ?? ""
             let owner = signature.owner.trimmedDescription
             let operations = Self.operations(of: signature)
-            let primary = operations.first { $0.isPrimary }
+            let primaries = operations.filter(\.isPrimary)
             let groups = Self.groups(of: operations)
-            let stored = (primary.map { ["\(access)let run: \($0.arrow(owner: owner))"] } ?? [])
+            let stored = primaries.map { "\(access)let `\($0.key)`: \($0.arrow(owner: owner))" }
                 + groups.map { group in
                     "\(access)var \(group.name): \(owner).\(group.operations[0].symbol)"
                 }
                 + signature.children.map { child in
                     "\(access)var \(child.name.text): \(child.domain.trimmedDescription)"
                 }
-            let parameters = (primary.map { ["_ run: @escaping \($0.arrow(owner: owner))"] } ?? [])
+            let parameters = primaries.map {
+                    "\($0.variant == nil ? "_ run" : $0.key): @escaping \($0.arrow(owner: owner))"
+                }
                 + groups.map { group in
                     group.operations.count == 1
                         ? "\(group.name): @escaping \(group.operations[0].arrow(owner: owner))"
@@ -26,7 +28,7 @@ extension Interface {
                 + signature.children.map { child in
                     "\(child.name.text): \(child.domain.trimmedDescription)"
                 }
-            let assignments = (primary.map { _ in ["self.run = run"] } ?? [])
+            let assignments = primaries.map { "self.`\($0.key)` = \($0.variant == nil ? "run" : "`\($0.key)`")" }
                 + groups.map { group in
                     group.operations.count == 1
                         ? "self.\(group.name) = \(owner).\(group.operations[0].symbol)(\(group.name))"
@@ -52,12 +54,12 @@ extension Interface {
             let spelling = access.map { "\($0.name.text) " } ?? ""
             let owner = signature.owner.trimmedDescription
             let operations = Self.operations(of: signature)
-            let primary = operations.first { $0.isPrimary }
+            let primaries = operations.filter(\.isPrimary)
             let groups: [[DeclSyntax]] = [
                 symbols(of: operations, access: spelling),
                 call(of: signature, operations: operations, access: access),
             ]
-            + (primary.map { [Self.primary($0, owner: owner, access: spelling)] } ?? [])
+            + (primaries.isEmpty ? [] : [Self.primary(primaries, owner: owner, access: spelling)])
             + Self.groups(of: operations).map {
                 callable($0.operations, owner: owner, access: spelling)
             }
@@ -125,23 +127,42 @@ extension Interface {
         }
 
         private static func primary(
-            _ operation: Operation,
+            _ operations: [Operation],
             owner: String,
             access: String
         ) -> [DeclSyntax] {
-            let request = operation.requestPath(owner: owner)
-            let signature = operation.function.declaration.signature.trimmedDescription
-            let call = operation.function.returnsVoid
-                ? "\(operation.prefix)self.run(\(request)(\(operation.construction)))"
-                : "return \(operation.prefix)self.run(\(request)(\(operation.construction)))"
-            return [
-                DeclSyntax(stringLiteral: self.request(operation, access: access)),
-                DeclSyntax(stringLiteral: """
-                    \(access)func callAsFunction\(signature) {
-                        \(call)
+            operations.flatMap { operation -> [DeclSyntax] in
+                let request = operation.requestPath(owner: owner)
+                let requestParameter = operation.transfers ? "consuming \(request)" : request
+                let signature = operation.function.declaration.signature.trimmedDescription
+                let call = operation.function.returnsVoid
+                    ? "\(operation.prefix)self.`\(operation.key)`(\(request)(\(operation.construction)))"
+                    : "return \(operation.prefix)self.`\(operation.key)`(\(request)(\(operation.construction)))"
+                let forwarding = operation.function.returnsVoid
+                    ? "\(operation.prefix)self.`\(operation.key)`(request)"
+                    : "return \(operation.prefix)self.`\(operation.key)`(request)"
+                let body = self.request(operation, access: access)
+                let requestDeclaration = operation.variant.map { variant in
+                    """
+                    \(access)enum \(variant) {
+                    \(body)
                     }
-                    """),
-            ]
+                    """
+                } ?? body
+                return [
+                    DeclSyntax(stringLiteral: requestDeclaration),
+                    DeclSyntax(stringLiteral: """
+                        \(access)func callAsFunction\(signature) {
+                            \(call)
+                        }
+                        """),
+                    DeclSyntax(stringLiteral: """
+                        \(access)func callAsFunction(_ request: \(requestParameter))\(operation.effects) -> \(operation.output) {
+                            \(forwarding)
+                        }
+                        """),
+                ]
+            }
         }
 
         private static func callable(
@@ -368,19 +389,20 @@ extension Interface.Derivation {
         var name: String { function.name.text }
         var symbol: String { isPrimary ? "Call" : coordinate.symbol.text }
         var caseName: String {
-            isPrimary ? "call" : variant.map { "\(name)\($0)" } ?? name
+            let base = isPrimary ? "call" : name
+            return variant.map { "\(base)\($0)" } ?? base
         }
         var symbolName: String {
-            isPrimary ? "Call" : variant.map { "\(symbol)\($0)" } ?? symbol
+            variant.map { "\(symbol)\($0)" } ?? symbol
         }
         var key: String {
             guard let variant else { return "run" }
             return "\(variant.prefix(1).lowercased())\(variant.dropFirst())"
         }
         func requestPath(owner: String) -> String {
-            if isPrimary { return "\(owner).Request" }
-            guard let variant else { return "\(owner).\(symbol).Request" }
-            return "\(owner).\(symbol).\(variant).Request"
+            let base = isPrimary ? owner : "\(owner).\(symbol)"
+            guard let variant else { return "\(base).Request" }
+            return "\(base).\(variant).Request"
         }
         var output: String { coordinate.output.trimmedDescription }
         var effects: String {
@@ -410,13 +432,10 @@ extension Interface.Derivation {
             let name = coordinate.name.text
             let isPrimary = name == "callAsFunction"
             var variant: String?
-            if !isPrimary, counts[name, default: 0] > 1 {
-                let first = coordinate.function.parameters.first
-                let label = first.map { parameter in
-                    parameter.declaration.firstName.tokenKind == .wildcard
-                        ? parameter.localName.text
-                        : parameter.declaration.firstName.text
-                } ?? "Unlabeled"
+            if counts[name, default: 0] > 1, let first = coordinate.function.parameters.first {
+                let label = first.declaration.firstName.tokenKind == .wildcard
+                    ? first.localName.text
+                    : first.declaration.firstName.text
                 variant = "\(label.prefix(1).uppercased())\(label.dropFirst())"
             }
             return Operation(coordinate: coordinate, group: name, variant: variant, isPrimary: isPrimary)

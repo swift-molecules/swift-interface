@@ -23,6 +23,7 @@ enum Store {
     struct Removal: Removal.Interface {
         protocol Interface {
             func callAsFunction(_ item: Store.Item) throws(Store.Failure)
+            func callAsFunction(today: String) -> Int
             func completed(in bucket: String) -> Int
             func completed(matching prefix: String, limit: Int?) -> Int
         }
@@ -116,9 +117,10 @@ private struct `Wrapper Tests` {
     @Test
     func `an interface may be its own primary operation and overload a base name`() throws {
         let removal = Store.Removal(
-            { request throws(Store.Failure) in
+            item: { request throws(Store.Failure) in
                 guard !request.item.value.isEmpty else { throw .missing }
             },
+            today: { $0.today.count * 10 },
             completed: .init(
                 in: { $0.bucket.count },
                 matching: { $0.prefix.count + ($0.limit ?? 0) }
@@ -130,7 +132,9 @@ private struct `Wrapper Tests` {
         #expect(removal.completed(in: "abc") == 3)
         #expect(removal.completed(matching: "ab", limit: 5) == 7)
         #expect(removal.completed(Store.Removal.Completed.In.Request(in: "abcd")) == 4)
-        #expect(Store.Removal.Request(.init(value: "x")).item == .init(value: "x"))
+        #expect(Store.Removal.Item.Request(.init(value: "x")).item == .init(value: "x"))
+        #expect(removal(today: "ab") == 20)
+        #expect(removal(Store.Removal.Today.Request(today: "abc")) == 30)
         #expect(try useGeneric(removal) == 3)
     }
 }
