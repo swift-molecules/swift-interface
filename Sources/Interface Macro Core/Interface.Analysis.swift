@@ -46,10 +46,10 @@ extension Interface {
                 input = Self.input(of: inputs)
                 inputExpression = Self.inputExpression(of: inputs)
                 output = qualify.rewrite(function.output)
-                failure = qualify.rewrite(
-                    function.thrownError
-                        ?? TypeSyntax(IdentifierTypeSyntax(name: .identifier("Never")))
-                )
+                failure = function.thrownError.map(qualify.rewrite)
+                    ?? TypeSyntax(
+                        stringLiteral: function.isUntypedThrows ? "any Swift.Error" : "Never"
+                    )
             }
 
             private static func input(
@@ -127,6 +127,7 @@ extension Interface {
         public let product: Product.Analysis
         public let coordinates: [Coordinate]
         public let children: [Child]
+        public let bindings: [TypeSyntax]
         public let diagnostics: [String]
 
         public static let derived = [
@@ -165,11 +166,6 @@ extension Interface {
             if declaration.inheritanceClause != nil {
                 reasons.append("inherited protocols are not a closed finite signature")
             }
-            for function in product.functionCoordinates where function.isUntypedThrows {
-                reasons.append(
-                    "`\(function.name.text)` has untyped throws; its failure sort must be explicit"
-                )
-            }
             for function in product.functionCoordinates {
                 for parameter in function.parameters where parameter.isInout {
                     reasons.append(
@@ -179,6 +175,7 @@ extension Interface {
             }
 
             var domains: [String: TypeSyntax] = [:]
+            var bindings: [TypeSyntax] = []
             for coordinate in product.associatedTypeCoordinates {
                 guard let domain = Self.domain(of: coordinate) else {
                     reasons.append(
@@ -187,7 +184,11 @@ extension Interface {
                     continue
                 }
                 domains[coordinate.name.text] = domain
+                bindings.append(
+                    TypeSyntax(MemberTypeSyntax(baseType: domain, name: .identifier("Product")))
+                )
             }
+            self.bindings = bindings
 
             var usedDomains: Set<String> = []
             var recognizedChildren: [Child] = []

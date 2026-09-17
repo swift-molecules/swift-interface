@@ -16,6 +16,77 @@ extension Interface {
                 + call(of: signature, access: access)
         }
 
+        public static func members(of signature: Interface.Analysis) -> [DeclSyntax] {
+            let access = signature.product.access
+            let spelling = access.map { "\($0.name.text) " } ?? ""
+            return peers(of: signature)
+                + wrapper(of: signature, access: spelling)
+        }
+
+        private static func wrapper(
+            of signature: Interface.Analysis,
+            access: String
+        ) -> [DeclSyntax] {
+            let product = signature.bindings.isEmpty
+                ? "Product"
+                : "Product<\(signature.bindings.map(\.trimmedDescription).joined(separator: ", "))>"
+            let storage: [DeclSyntax] = [
+                DeclSyntax(stringLiteral: """
+                    \(access)var product: \(product)
+                    """),
+                DeclSyntax(stringLiteral: """
+                    \(access)init(product: \(product)) {
+                        self.product = product
+                    }
+                    """),
+            ]
+            let arrows = signature.coordinates.flatMap { coordinate -> [DeclSyntax] in
+                let function = coordinate.function
+                let name = function.name.text
+                let arguments = function.parameters.map { parameter in
+                    let declaration = parameter.declaration
+                    let label = declaration.firstName.tokenKind == .wildcard
+                        ? ""
+                        : "\(declaration.firstName.text): "
+                    return "\(label)\(parameter.forwardingExpression.trimmedDescription)"
+                }.joined(separator: ", ")
+                let effects = function.declaration.signature.effectSpecifiers
+                let prefix = (effects?.throwsClause != nil ? "try " : "")
+                    + (effects?.asyncSpecifier != nil ? "await " : "")
+                let statement = function.returnsVoid
+                    ? "\(prefix)product.\(name)(\(arguments))"
+                    : "return \(prefix)product.\(name)(\(arguments))"
+                return [
+                    DeclSyntax(stringLiteral: """
+                        \(access)struct \(coordinate.symbol.text) {
+                            private let product: \(product)
+
+                            fileprivate init(_ product: \(product)) {
+                                self.product = product
+                            }
+
+                            \(access)func callAsFunction\(function.declaration.signature.trimmedDescription) {
+                                \(statement)
+                            }
+                        }
+                        """),
+                    DeclSyntax(stringLiteral: """
+                        \(access)var \(name): \(coordinate.symbol.text) {
+                            \(coordinate.symbol.text)(product)
+                        }
+                        """),
+                ]
+            }
+            let children = signature.children.map { child -> DeclSyntax in
+                DeclSyntax(stringLiteral: """
+                    \(access)var \(child.name.text): \(child.domain.trimmedDescription) {
+                        .init(product: product.\(child.name.text))
+                    }
+                    """)
+            }
+            return storage + arrows + children
+        }
+
         private static func operations(
             of signature: Interface.Analysis,
             access: String

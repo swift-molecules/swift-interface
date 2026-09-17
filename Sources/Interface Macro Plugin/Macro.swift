@@ -29,14 +29,17 @@ public struct Structural: ExtensionMacro {
     }
 }
 
-public struct Macro: PeerMacro {
+public struct Macro: PeerMacro, MemberMacro {
     public static func expansion(
         of _: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
+        if declaration.is(StructDeclSyntax.self) { return [] }
         guard let declaration = declaration.as(ProtocolDeclSyntax.self) else {
-            throw MacroExpansionErrorMessage("@Interface applies to a protocol declaration only.")
+            throw MacroExpansionErrorMessage(
+                "@Interface applies to a protocol named `Protocol`, or to the struct that nests it."
+            )
         }
         let owner = context.lexicalContext.first.flatMap { syntax -> TypeSyntax? in
             if let declaration = syntax.as(EnumDeclSyntax.self) {
@@ -50,21 +53,50 @@ public struct Macro: PeerMacro {
             }
             return nil
         }
-        let spelling = declaration.name.text
-        let name = spelling.first == "`" && spelling.last == "`"
-            ? String(spelling.dropFirst().dropLast())
-            : spelling
-        guard name == "Protocol", let owner else {
+        guard Self.isSemantic(declaration), let owner else {
             throw MacroExpansionErrorMessage(
                 "@Interface requires a semantic protocol named `Protocol` nested in its domain namespace."
             )
         }
+        return Interface.Derivation.peers(of: try Self.analysis(of: declaration, owner: owner))
+    }
+
+    public static func expansion(
+        of _: AttributeSyntax,
+        providingMembersOf declaration: some DeclGroupSyntax,
+        in _: some MacroExpansionContext
+    ) throws -> [DeclSyntax] {
+        guard let owner = declaration.as(StructDeclSyntax.self) else { return [] }
+        let semantic = owner.memberBlock.members.lazy.compactMap {
+            $0.decl.as(ProtocolDeclSyntax.self)
+        }.first(where: Self.isSemantic)
+        guard let semantic else {
+            throw MacroExpansionErrorMessage(
+                "@Interface on a struct requires a nested semantic protocol named `Protocol`."
+            )
+        }
+        let name = TypeSyntax(IdentifierTypeSyntax(name: owner.name.trimmed))
+        return Interface.Derivation.members(of: try Self.analysis(of: semantic, owner: name))
+    }
+
+    private static func isSemantic(_ declaration: ProtocolDeclSyntax) -> Bool {
+        let spelling = declaration.name.text
+        let name = spelling.first == "`" && spelling.last == "`"
+            ? String(spelling.dropFirst().dropLast())
+            : spelling
+        return name == "Protocol"
+    }
+
+    private static func analysis(
+        of declaration: ProtocolDeclSyntax,
+        owner: TypeSyntax
+    ) throws -> Interface.Analysis {
         let signature = Interface.Analysis(declaration: declaration, owner: owner)
         guard signature.diagnostics.isEmpty else {
             throw MacroExpansionErrorMessage(
                 "@Interface cannot derive this finite signature: \(signature.diagnostics.joined(separator: "; "))."
             )
         }
-        return Interface.Derivation.peers(of: signature)
+        return signature
     }
 }

@@ -81,3 +81,23 @@ func `signature rejects inout state transitions`() throws {
 
     #expect(signature.diagnostics.contains { $0.contains("owned snapshot") })
 }
+
+@Test
+func `signature admits untyped throws as the any Error failure sort`() throws {
+    let source = Parser.parse(source: """
+        protocol `Protocol` {
+            func load(_ key: String) throws -> Int
+        }
+        """)
+    let declaration = try #require(
+        source.statements.first?.item.as(ProtocolDeclSyntax.self)
+    )
+    let signature = Interface.Analysis(
+        declaration: declaration,
+        owner: TypeSyntax(IdentifierTypeSyntax(name: .identifier("Domain")))
+    )
+    let coordinate = try #require(signature.coordinates.first)
+
+    #expect(signature.diagnostics.isEmpty)
+    #expect(coordinate.failure.trimmedDescription == "any Swift.Error")
+}
