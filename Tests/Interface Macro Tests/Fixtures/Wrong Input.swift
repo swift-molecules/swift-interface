@@ -1,10 +1,10 @@
-import Signature_Derivation
+import Interface_Macro
 
 enum Greeting {
     struct Name {}
     struct Message {}
 
-    @Signature
+    @Interface
     protocol `Protocol` {
         func greet(_ name: Name) -> Message
     }

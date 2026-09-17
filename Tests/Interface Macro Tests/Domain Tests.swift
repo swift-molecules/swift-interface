@@ -1,4 +1,4 @@
-import Signature_Derivation
+import Interface_Macro
 import Testing
 
 private enum Greeting {
@@ -10,7 +10,7 @@ private enum Greeting {
         var value: String
     }
 
-    @Signature
+    @Interface
     protocol `Protocol` {
         func greet(_ name: Name) async -> Message
     }
@@ -29,17 +29,17 @@ private enum Counter {
         case exceeded
     }
 
-    @Signature
+    @Interface
     protocol `Protocol` {
         func increment(limit: Limit) async throws(Error) -> Value
     }
 }
 
 private enum Example {
-    @Signature
+    @Interface
     protocol `Protocol` {
-        associatedtype Greeting: Signature_Derivation_Tests::Greeting.`Protocol`
-        associatedtype Counter: Signature_Derivation_Tests::Counter.`Protocol`
+        associatedtype Greeting: Interface_Macro_Tests::Greeting.`Protocol`
+        associatedtype Counter: Interface_Macro_Tests::Counter.`Protocol`
 
         var greeting: Greeting { get }
         var counter: Counter { get }
@@ -51,7 +51,7 @@ private enum Nested {
     struct Output {}
     enum Failure: Swift.Error {}
 
-    @Signature
+    @Interface
     protocol `Protocol` {
         func transform(
             _ values: [Input]
@@ -68,7 +68,7 @@ private enum Numerals {
         case unreadable
     }
 
-    @Signature
+    @Interface
     protocol `Protocol` {
         func digit(_ digit: Digit) throws(Failure) -> Digit
     }
@@ -79,16 +79,16 @@ private enum Linear {
         let value: Int
     }
 
-    @Signature
+    @Interface
     protocol `Protocol` {
         func consume(_ token: consuming Token) -> Int
     }
 }
 
 private enum LinearExample {
-    @Signature
+    @Interface
     protocol `Protocol` {
-        associatedtype Linear: Signature_Derivation_Tests::Linear.`Protocol`
+        associatedtype Linear: Interface_Macro_Tests::Linear.`Protocol`
 
         var linear: Linear { get }
     }
@@ -99,7 +99,7 @@ private enum LinearPair {
         let value: Int
     }
 
-    @Signature
+    @Interface
     protocol `Protocol` {
         func combine(
             _ first: consuming Token,
@@ -109,14 +109,14 @@ private enum LinearPair {
 }
 
 private enum Observation {
-    @Signature
+    @Interface
     protocol `Protocol` {
         func inspect(_ value: borrowing Int) -> Int
     }
 }
 
 private enum Owned {
-    @Signature
+    @Interface
     protocol `Protocol` {
         func consume(_ value: consuming Int) -> Int
     }

@@ -5,7 +5,7 @@ import Testing
 private struct `Compiler Tests` {
     @Test
     func `signature requires a domain namespace`() throws {
-        let diagnostic = try typecheckFailure(named: "Top Level Signature.swift")
+        let diagnostic = try typecheckFailure(named: "Top Level Interface.swift")
 
         #expect(
             diagnostic.contains(
@@ -89,7 +89,7 @@ private struct `Compiler Tests` {
 
     @Test
     func `signature rejects inout state transitions`() throws {
-        let diagnostic = try typecheckFailure(named: "Inout Signature.swift")
+        let diagnostic = try typecheckFailure(named: "Inout Interface.swift")
 
         #expect(diagnostic.contains("owned snapshot, not a state transition"))
     }
@@ -97,7 +97,7 @@ private struct `Compiler Tests` {
     private func typecheckFailure(named name: String) throws -> String {
         var products = Bundle.module.bundleURL
         while !FileManager.default.fileExists(
-            atPath: products.appendingPathComponent("Signature_Derivation.swiftmodule").path
+            atPath: products.appendingPathComponent("Interface_Macro.swiftmodule").path
         ) {
             let parent = products.deletingLastPathComponent()
             products = try #require(parent != products ? parent : nil)
@@ -121,7 +121,7 @@ private struct `Compiler Tests` {
             "-Xfrontend", "-load-plugin-executable",
             "-Xfrontend",
             products.appendingPathComponent(
-                "Signature Derivation Macros#Signature_Derivation_Macros"
+                "Interface Macro Plugin#Interface_Macro_Plugin"
             ).path,
             fixture.path,
         ]

@@ -1,7 +1,7 @@
-import Signature_Derivation
+import Interface_Macro
 
 enum Mutation {
-    @Signature
+    @Interface
     protocol `Protocol` {
         func mutate(_ value: inout Int)
     }

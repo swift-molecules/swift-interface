@@ -1,9 +1,9 @@
-import Signature_Derivation
+import Interface_Macro
 
 enum Scoped {
     struct ScopedToken: ~Escapable {}
 
-    @Signature
+    @Interface
     protocol `Protocol` {
         func inspect(_ token: consuming ScopedToken)
     }

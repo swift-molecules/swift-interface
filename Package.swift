@@ -4,7 +4,7 @@ import CompilerPluginSupport
 import PackageDescription
 
 let package = Package(
-    name: "swift-signature-derivation",
+    name: "swift-interface",
     platforms: [
         .macOS(.v27),
         .iOS(.v27),
@@ -13,41 +13,33 @@ let package = Package(
         .visionOS(.v27),
     ],
     products: [
-        .library(name: "Signature Derivation", targets: ["Signature Derivation"]),
-        .library(name: "Signature Derivation Core", targets: ["Signature Derivation Core"]),
+        .library(name: "Interface Macro", targets: ["Interface Macro"]),
+        .library(name: "Interface Macro Core", targets: ["Interface Macro Core"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/swift-atoms/swift-checkpoint.git", branch: "main"),
-        .package(url: "https://github.com/swift-atoms/swift-coder.git", branch: "main"),
-        .package(url: "https://github.com/swift-atoms/swift-either.git", branch: "main"),
-        .package(url: "https://github.com/swift-atoms/swift-parser.git", branch: "main"),
-        .package(url: "https://github.com/swift-atoms/swift-serializer.git", branch: "main"),
         .package(url: "https://github.com/swift-atoms/swift-optic.git", branch: "main"),
         .package(url: "https://github.com/swift-atoms/swift-operation.git", branch: "main"),
-        .package(url: "https://github.com/swift-molecules/swift-coproduct-derivation.git", branch: "main"),
-        .package(url: "https://github.com/swift-molecules/swift-eliminator-derivation.git", branch: "main"),
-        .package(url: "https://github.com/swift-molecules/swift-prism-derivation.git", branch: "main"),
-        .package(url: "https://github.com/swift-molecules/swift-fold-derivation.git", branch: "main"),
-        .package(url: "https://github.com/swift-molecules/swift-product-derivation.git", branch: "main"),
+        .package(url: "https://github.com/swift-atoms/swift-coproduct.git", branch: "main"),
+        .package(url: "https://github.com/swift-atoms/swift-product.git", branch: "main"),
         .package(url: "https://github.com/swiftlang/swift-syntax.git", "603.0.2"..<"604.0.0"),
     ],
     targets: [
         .target(
-            name: "Signature Derivation Core",
+            name: "Interface Macro Core",
             dependencies: [
-                .product(name: "Coproduct Derivation Core", package: "swift-coproduct-derivation"),
-                .product(name: "Eliminator Derivation Core", package: "swift-eliminator-derivation"),
-                .product(name: "Prism Derivation Core", package: "swift-prism-derivation"),
-                .product(name: "Fold Derivation Core", package: "swift-fold-derivation"),
-                .product(name: "Product Derivation Core", package: "swift-product-derivation"),
+                .product(name: "Coproduct Macro Core", package: "swift-coproduct"),
+                .product(name: "Eliminator Macro Core", package: "swift-coproduct"),
+                .product(name: "Prism Macro Core", package: "swift-optic"),
+                .product(name: "Fold Macro Core", package: "swift-optic"),
+                .product(name: "Product Macro Core", package: "swift-product"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
             ]
         ),
         .macro(
-            name: "Signature Derivation Macros",
+            name: "Interface Macro Plugin",
             dependencies: [
-                "Signature Derivation Core",
+                "Interface Macro Core",
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
@@ -55,30 +47,20 @@ let package = Package(
             ]
         ),
         .target(
-            name: "Signature Derivation",
+            name: "Interface Macro",
             dependencies: [
-                "Signature Derivation Macros",
-                .product(name: "Checkpoint", package: "swift-checkpoint"),
-                .product(name: "Coder", package: "swift-coder"),
-                .product(name: "Either", package: "swift-either"),
+                "Interface Macro Plugin",
                 .product(name: "Operation", package: "swift-operation"),
                 .product(name: "Optic", package: "swift-optic"),
-                .product(name: "Parser", package: "swift-parser"),
-                .product(name: "Serializer", package: "swift-serializer"),
             ]
         ),
         .testTarget(
-            name: "Signature Derivation Tests",
+            name: "Interface Macro Tests",
             dependencies: [
-                "Signature Derivation",
-                "Signature Derivation Core",
-                .product(name: "Checkpoint", package: "swift-checkpoint"),
-                .product(name: "Coder", package: "swift-coder"),
-                .product(name: "Either", package: "swift-either"),
-                .product(name: "Parser", package: "swift-parser"),
-                .product(name: "Serializer", package: "swift-serializer"),
-                .product(name: "Product Derivation", package: "swift-product-derivation"),
-                .product(name: "Product Derivation Core", package: "swift-product-derivation"),
+                "Interface Macro",
+                "Interface Macro Core",
+                .product(name: "Product Macro", package: "swift-product"),
+                .product(name: "Product Macro Core", package: "swift-product"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ],
             resources: [.copy("Fixtures")]

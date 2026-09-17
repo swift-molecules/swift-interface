@@ -1,8 +1,8 @@
 public import SwiftSyntax
-public import Product_Derivation_Core
+public import Product_Macro_Core
 import SwiftSyntaxBuilder
 
-extension Signature {
+extension Interface {
     public struct Analysis {
         public struct Coordinate {
             public struct Input {
@@ -142,7 +142,6 @@ extension Signature {
             "Prisms",
             "Folds",
             "Eliminator",
-            "Router",
         ]
 
         public init(

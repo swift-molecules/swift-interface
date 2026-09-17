@@ -1,12 +1,12 @@
 import Either
-import Signature_Derivation
+import Interface_Macro
 
 enum Greeting {
     struct Name {}
     struct Message {}
     enum Failure: Swift.Error {}
 
-    @Signature
+    @Interface
     protocol `Protocol` {
         func greet(_ name: Name) throws(Failure) -> Message
     }

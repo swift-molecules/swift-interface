@@ -1,7 +1,7 @@
-import Signature_Derivation
+import Interface_Macro
 
 enum Fixture {
-    @Signature
+    @Interface
     protocol `Protocol` {
         func first(_ value: Int) -> String
         func second(_ value: Bool) -> Int

@@ -1,4 +1,4 @@
-import Signature_Derivation
+import Interface_Macro
 import Testing
 
 private enum Finite {
@@ -6,7 +6,7 @@ private enum Finite {
         case refused
     }
 
-    @Signature
+    @Interface
     protocol `Protocol` {
         func first(_ value: Int) -> String
         func second(_ flag: Bool) throws(Failure) -> Int

@@ -1,5 +1,5 @@
-import Product_Derivation_Core
-import Signature_Derivation_Core
+import Product_Macro_Core
+import Interface_Macro_Core
 import SwiftParser
 import SwiftSyntax
 import Testing
@@ -14,7 +14,7 @@ func `signature coordinates are reusable syntax backed derivation input`() throw
     let declaration = try #require(
         source.statements.first?.item.as(ProtocolDeclSyntax.self)
     )
-    let signature = Signature.Analysis(
+    let signature = Interface.Analysis(
         declaration: declaration,
         owner: TypeSyntax(IdentifierTypeSyntax(name: .identifier("Domain")))
     )
@@ -42,7 +42,7 @@ func `signature input type and value are rendered from one parameter analysis`()
     let declaration = try #require(
         source.statements.first?.item.as(ProtocolDeclSyntax.self)
     )
-    let signature = Signature.Analysis(
+    let signature = Interface.Analysis(
         declaration: declaration,
         owner: TypeSyntax(IdentifierTypeSyntax(name: .identifier("Domain")))
     )
@@ -74,7 +74,7 @@ func `signature rejects inout state transitions`() throws {
     let declaration = try #require(
         source.statements.first?.item.as(ProtocolDeclSyntax.self)
     )
-    let signature = Signature.Analysis(
+    let signature = Interface.Analysis(
         declaration: declaration,
         owner: TypeSyntax(IdentifierTypeSyntax(name: .identifier("Domain")))
     )

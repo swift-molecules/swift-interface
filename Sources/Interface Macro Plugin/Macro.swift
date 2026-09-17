@@ -1,4 +1,4 @@
-import Signature_Derivation_Core
+import Interface_Macro_Core
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
@@ -36,7 +36,7 @@ public struct Macro: PeerMacro {
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         guard let declaration = declaration.as(ProtocolDeclSyntax.self) else {
-            throw MacroExpansionErrorMessage("@Signature applies to a protocol declaration only.")
+            throw MacroExpansionErrorMessage("@Interface applies to a protocol declaration only.")
         }
         let owner = context.lexicalContext.first.flatMap { syntax -> TypeSyntax? in
             if let declaration = syntax.as(EnumDeclSyntax.self) {
@@ -56,15 +56,15 @@ public struct Macro: PeerMacro {
             : spelling
         guard name == "Protocol", let owner else {
             throw MacroExpansionErrorMessage(
-                "@Signature requires a semantic protocol named `Protocol` nested in its domain namespace."
+                "@Interface requires a semantic protocol named `Protocol` nested in its domain namespace."
             )
         }
-        let signature = Signature.Analysis(declaration: declaration, owner: owner)
+        let signature = Interface.Analysis(declaration: declaration, owner: owner)
         guard signature.diagnostics.isEmpty else {
             throw MacroExpansionErrorMessage(
-                "@Signature cannot derive this finite signature: \(signature.diagnostics.joined(separator: "; "))."
+                "@Interface cannot derive this finite signature: \(signature.diagnostics.joined(separator: "; "))."
             )
         }
-        return Signature.Derivation.peers(of: signature)
+        return Interface.Derivation.peers(of: signature)
     }
 }

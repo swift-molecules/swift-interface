@@ -1,14 +1,14 @@
 public import SwiftSyntax
-import Coproduct_Derivation_Core
-import Eliminator_Derivation_Core
-import Fold_Derivation_Core
-import Prism_Derivation_Core
-import Product_Derivation_Core
+import Coproduct_Macro_Core
+import Eliminator_Macro_Core
+import Fold_Macro_Core
+import Prism_Macro_Core
+import Product_Macro_Core
 import SwiftSyntaxBuilder
 
-extension Signature {
+extension Interface {
     public enum Derivation {
-        public static func peers(of signature: Signature.Analysis) -> [DeclSyntax] {
+        public static func peers(of signature: Interface.Analysis) -> [DeclSyntax] {
             let access = signature.product.access
             let spelling = access.map { "\($0.name.text) " } ?? ""
             return Product.Derivation.peers(of: signature.product)
@@ -17,7 +17,7 @@ extension Signature {
         }
 
         private static func operations(
-            of signature: Signature.Analysis,
+            of signature: Interface.Analysis,
             access: String
         ) -> [DeclSyntax] {
             guard !signature.coordinates.isEmpty else { return [] }
@@ -32,7 +32,7 @@ extension Signature {
         }
 
         private static func symbol(
-            _ coordinate: Signature.Analysis.Coordinate,
+            _ coordinate: Interface.Analysis.Coordinate,
             access: String
         ) -> String {
             """
@@ -48,7 +48,7 @@ extension Signature {
         }
 
         private static func call(
-            of signature: Signature.Analysis,
+            of signature: Interface.Analysis,
             access: DeclModifierSyntax?
         ) -> [DeclSyntax] {
             let accessSpelling = access.map { "\($0.name.text) " } ?? ""
@@ -60,7 +60,7 @@ extension Signature {
             // Call remains Escapable because its canonical generated prisms return
             // both Call and Application from stored escaping arrows. Swift 6.4
             // cannot express those result lifetime dependencies; the focused Optic
-            // and Signature compiler fixtures lock down that boundary.
+            // and Interface compiler fixtures lock down that boundary.
             let owner = signature.owner.trimmedDescription
             let leaves = signature.coordinates.map { coordinate in
                 (
@@ -139,13 +139,6 @@ extension Signature {
                     Cases()
                 }
                 """
-            let router = self.router(
-                summands: summands.map {
-                    (label: $0.name.text, payload: $0.parameter)
-                },
-                access: accessSpelling
-            )
-
             return [
                 DeclSyntax(stringLiteral: """
                     @Structural
@@ -157,113 +150,12 @@ extension Signature {
                     \(members)
 
                     \(caseNamespace)
-
-                    \(router)
                     }
                     """),
                 DeclSyntax(stringLiteral: """
                     \(accessSpelling)typealias Call = Coproduct<\(arguments)>
                     """),
             ]
-        }
-
-        private static func router(
-            summands: [(label: String, payload: String)],
-            access: String
-        ) -> String {
-            let output = "Coproduct<\(summands.map(\.payload).joined(separator: ", "))>"
-            let coders = summands.map { summand in
-                (
-                    label: summand.label,
-                    payload: summand.payload,
-                    coder: "\(summand.label.prefix(1).uppercased())\(summand.label.dropFirst())Coder"
-                )
-            }
-            let parameters = (
-                ["Message: Checkpoint::Restorable", "Failure: Swift.Error & Swift.Equatable"]
-                    + coders.map {
-                        "\($0.coder): Coder::Coding<Message, \($0.payload), Message, Failure>"
-                    }
-            ).joined(separator: ",\n")
-            let restatements = coders.map {
-                "\($0.coder).Output: ~Copyable"
-            }.joined(separator: ",\n")
-            let storage = coders.map {
-                "\(access)let \($0.label): \($0.coder)"
-            }.joined(separator: "\n")
-            let initializerParameters = (
-                ["absent: Failure"] + coders.map { "\($0.label): \($0.coder)" }
-            ).joined(separator: ",\n")
-            let assignments = (["self.absent = absent"] + coders.map {
-                "self.\($0.label) = \($0.label)"
-            }).joined(separator: "\n")
-            let parsed = coders.map { coder in
-                """
-                do throws(Failure) {
-                    return Output.\(coder.label)(try \(coder.label).parse(&input))
-                } catch {
-                    guard error == absent else { throw error }
-                    input.seek(to: mark)
-                }
-                """
-            }.joined(separator: "\n")
-            let serialized = coders.map { coder in
-                """
-                if Output.folds.\(coder.label)(output, { payload in
-                    do throws(Failure) {
-                        try router.\(coder.label).serialize(payload, into: &buffer)
-                    } catch {
-                        failure = error
-                    }
-                }) {
-                    if let failure { throw failure }
-                    return
-                }
-                """
-            }.joined(separator: "\n\n")
-
-            return """
-                \(access)struct Router<
-                \(parameters)
-                >: Coder::Coding
-                where
-                \(restatements)
-                {
-                    \(access)typealias Input = Message
-
-                    \(access)typealias Buffer = Message
-
-                    \(access)typealias Output = \(output)
-
-                    \(access)let absent: Failure
-
-                    \(storage)
-
-                    \(access)init(
-                    \(initializerParameters)
-                    ) {
-                        \(assignments)
-                    }
-
-                    \(access)borrowing func parse(_ input: inout Message) throws(Failure) -> Output {
-                        let mark = input.checkpoint
-                        \(parsed)
-                        throw absent
-                    }
-
-                    \(access)borrowing func serialize(
-                        _ output: borrowing Output,
-                        into buffer: inout Message
-                    ) throws(Failure) {
-                        let router = copy self
-                        var failure: Failure?
-
-                        \(serialized)
-
-                        throw absent
-                    }
-                }
-                """
         }
     }
 }

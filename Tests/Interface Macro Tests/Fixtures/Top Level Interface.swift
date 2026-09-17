@@ -1,6 +1,6 @@
-import Signature_Derivation
+import Interface_Macro
 
-@Signature
+@Interface
 protocol Greeting {
     func greet(_ name: String) -> String
 }

@@ -1,9 +1,9 @@
-import Signature_Derivation
+import Interface_Macro
 
 enum Linear {
     struct Token: ~Copyable {}
 
-    @Signature
+    @Interface
     protocol `Protocol` {
         func consume(_ token: consuming Token)
     }
