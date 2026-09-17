@@ -18,14 +18,26 @@ extension Interface {
 
         public static func members(of signature: Interface.Analysis) -> [DeclSyntax] {
             let access = signature.product.access.map { "\($0.name.text) " } ?? ""
-            let product = productBinding(of: signature)
-            return [
+            let owner = signature.owner.trimmedDescription
+            let stored = signature.coordinates.map { coordinate in
+                "\(access)var \(coordinate.name.text): \(owner).\(coordinate.symbol.text)"
+            } + signature.children.map { child in
+                "\(access)var \(child.name.text): \(child.domain.trimmedDescription)"
+            }
+            let parameters = signature.coordinates.map { coordinate in
+                "\(coordinate.name.text): @escaping \(coordinate.function.closureType.trimmedDescription)"
+            } + signature.children.map { child in
+                "\(child.name.text): \(child.domain.trimmedDescription)"
+            }
+            let assignments = signature.coordinates.map { coordinate in
+                "self.\(coordinate.name.text) = \(owner).\(coordinate.symbol.text)(\(coordinate.name.text))"
+            } + signature.children.map { child in
+                "self.\(child.name.text) = \(child.name.text)"
+            }
+            return stored.map { DeclSyntax(stringLiteral: $0) } + [
                 DeclSyntax(stringLiteral: """
-                    \(access)var product: \(product)
-                    """),
-                DeclSyntax(stringLiteral: """
-                    \(access)init(product: \(product)) {
-                        self.product = product
+                    \(access)init(\(parameters.joined(separator: ", "))) {
+                    \(assignments.joined(separator: "\n"))
                     }
                     """),
             ]
@@ -37,21 +49,12 @@ extension Interface {
         ) -> [ExtensionDeclSyntax] {
             let access = signature.product.access
             let spelling = access.map { "\($0.name.text) " } ?? ""
-            let product = productBinding(of: signature)
             let groups: [[DeclSyntax]] = [
-                Product.Derivation.peers(of: signature.product),
                 operations(of: signature, access: spelling),
                 call(of: signature, access: access),
             ]
             + signature.coordinates.map {
-                arrow($0, owner: signature.owner.trimmedDescription, product: product, access: spelling)
-            }
-            + signature.children.map { child in
-                [DeclSyntax(stringLiteral: """
-                    \(spelling)var \(child.name.text): \(child.domain.trimmedDescription) {
-                        .init(product: product.\(child.name.text))
-                    }
-                    """)]
+                arrow($0, owner: signature.owner.trimmedDescription, access: spelling)
             }
             return groups.filter { !$0.isEmpty }.compactMap { members in
                 let body = members.map(\.trimmedDescription).joined(separator: "\n\n")
@@ -64,41 +67,32 @@ extension Interface {
             }
         }
 
-        private static func productBinding(of signature: Interface.Analysis) -> String {
-            let product = "\(signature.owner.trimmedDescription).Product"
-            return signature.bindings.isEmpty
-                ? product
-                : "\(product)<\(signature.bindings.map(\.trimmedDescription).joined(separator: ", "))>"
-        }
-
         private static func arrow(
             _ coordinate: Interface.Analysis.Coordinate,
             owner: String,
-            product: String,
             access: String
         ) -> [DeclSyntax] {
             let function = coordinate.function
             let name = function.name.text
-            let arguments = function.parameters.map { parameter in
-                let declaration = parameter.declaration
-                let label = declaration.firstName.tokenKind == .wildcard
-                    ? ""
-                    : "\(declaration.firstName.text): "
-                return "\(label)\(parameter.forwardingExpression.trimmedDescription)"
-            }.joined(separator: ", ")
+            let closure = function.closureType.trimmedDescription
+            let arguments = function.parameters.map(\.forwardingExpression.trimmedDescription)
+                .joined(separator: ", ")
             let effects = function.declaration.signature.effectSpecifiers
             let prefix = (effects?.throwsClause != nil ? "try " : "")
                 + (effects?.asyncSpecifier != nil ? "await " : "")
             let statement = function.returnsVoid
-                ? "\(prefix)product.\(name)(\(arguments))"
-                : "return \(prefix)product.\(name)(\(arguments))"
+                ? "\(prefix)run(\(arguments))"
+                : "return \(prefix)run(\(arguments))"
+            let witness = function.returnsVoid
+                ? "\(prefix)self.\(name).run(\(arguments))"
+                : "return \(prefix)self.\(name).run(\(arguments))"
             return [
                 DeclSyntax(stringLiteral: """
                     \(access)struct \(coordinate.symbol.text) {
-                        private let product: \(product)
+                        \(access)let run: \(closure)
 
-                        fileprivate init(_ product: \(product)) {
-                            self.product = product
+                        \(access)init(_ run: @escaping \(closure)) {
+                            self.run = run
                         }
 
                         \(access)func callAsFunction\(function.declaration.signature.trimmedDescription) {
@@ -107,8 +101,8 @@ extension Interface {
                     }
                     """),
                 DeclSyntax(stringLiteral: """
-                    \(access)var \(name): \(owner).\(coordinate.symbol.text) {
-                        \(owner).\(coordinate.symbol.text)(product)
+                    \(access)func \(name)\(function.declaration.signature.trimmedDescription) {
+                        \(witness)
                     }
                     """),
             ]

@@ -11,7 +11,7 @@ private enum Store {
     }
 
     @Interface
-    struct Items {
+    struct Items: Items.`Protocol` {
         protocol `Protocol` {
             func add(_ item: Item) throws(Failure) -> Int
             func remove(_ item: Item, replacement: Item) throws
@@ -20,7 +20,7 @@ private enum Store {
     }
 
     @Interface
-    struct Root {
+    struct Root: Root.`Protocol` {
         protocol `Protocol` {
             associatedtype Items: Store.Items.`Protocol`
 
@@ -29,17 +29,23 @@ private enum Store {
     }
 }
 
+private func useGeneric<Items: Store.Items.`Protocol`>(_ items: Items) throws(Store.Failure) -> Int {
+    try items.add(.init(value: "Blob"))
+}
+
+private func useGeneric<Root: Store.Root.`Protocol`>(_ root: Root) throws(Store.Failure) -> Int {
+    try root.items.add(.init(value: "ab"))
+}
+
 @Suite
 private struct `Wrapper Tests` {
     let items = Store.Items(
-        product: .init(
-            add: { item throws(Store.Failure) in
-                guard !item.value.isEmpty else { throw .missing }
-                return item.value.count
-            },
-            remove: { _, _ in },
-            count: { 3 }
-        )
+        add: { item throws(Store.Failure) in
+            guard !item.value.isEmpty else { throw .missing }
+            return item.value.count
+        },
+        remove: { _, _ in },
+        count: { 3 }
     )
 
     @Test
@@ -69,11 +75,17 @@ private struct `Wrapper Tests` {
     }
 
     @Test
-    func `a root wrapper binds its children to their products and re-wraps them`() async throws {
-        let root = Store.Root(product: .init(items: items.product))
+    func `a root stores its children and is a model of its own signature`() async throws {
+        let root = Store.Root(items: items)
         let count = await root.items.count()
 
         #expect(count == 3)
         #expect(try root.items.add(.init(value: "ab")) == 2)
+        #expect(try useGeneric(root) == 2)
+    }
+
+    @Test
+    func `the struct witnesses its protocol through its stored callables`() throws {
+        #expect(try useGeneric(items) == 4)
     }
 }
