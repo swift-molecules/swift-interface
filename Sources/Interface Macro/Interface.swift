@@ -2,7 +2,8 @@
 @_exported import Optic
 
 @attached(peer, names: arbitrary)
-@attached(member, names: arbitrary)
+@attached(member, names: named(product), named(init))
+@attached(extension, names: arbitrary)
 public macro Interface() = #externalMacro(
     module: "Interface_Macro_Plugin",
     type: "Macro"

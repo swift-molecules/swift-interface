@@ -29,7 +29,7 @@ public struct Structural: ExtensionMacro {
     }
 }
 
-public struct Macro: PeerMacro, MemberMacro {
+public struct Macro: PeerMacro, MemberMacro, ExtensionMacro {
     public static func expansion(
         of _: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
@@ -67,16 +67,36 @@ public struct Macro: PeerMacro, MemberMacro {
         in _: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         guard let owner = declaration.as(StructDeclSyntax.self) else { return [] }
-        let semantic = owner.memberBlock.members.lazy.compactMap {
-            $0.decl.as(ProtocolDeclSyntax.self)
-        }.first(where: Self.isSemantic)
-        guard let semantic else {
+        guard let semantic = Self.semantic(of: owner) else {
             throw MacroExpansionErrorMessage(
                 "@Interface on a struct requires a nested semantic protocol named `Protocol`."
             )
         }
         let name = TypeSyntax(IdentifierTypeSyntax(name: owner.name.trimmed))
         return Interface.Derivation.members(of: try Self.analysis(of: semantic, owner: name))
+    }
+
+    public static func expansion(
+        of _: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingExtensionsOf type: some TypeSyntaxProtocol,
+        conformingTo _: [TypeSyntax],
+        in _: some MacroExpansionContext
+    ) throws -> [ExtensionDeclSyntax] {
+        guard let owner = declaration.as(StructDeclSyntax.self), let semantic = Self.semantic(of: owner) else {
+            return []
+        }
+        let extended = TypeSyntax(type.trimmed)
+        return Interface.Derivation.extensions(
+            of: try Self.analysis(of: semantic, owner: extended),
+            extending: extended
+        )
+    }
+
+    private static func semantic(of owner: StructDeclSyntax) -> ProtocolDeclSyntax? {
+        owner.memberBlock.members.lazy.compactMap {
+            $0.decl.as(ProtocolDeclSyntax.self)
+        }.first(where: Self.isSemantic)
     }
 
     private static func isSemantic(_ declaration: ProtocolDeclSyntax) -> Bool {
