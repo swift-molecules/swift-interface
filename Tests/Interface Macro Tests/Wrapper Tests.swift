@@ -20,6 +20,15 @@ enum Store {
     }
 
     @Interface
+    struct Removal: Removal.Interface {
+        protocol Interface {
+            func callAsFunction(_ item: Store.Item) throws(Store.Failure)
+            func completed(in bucket: String) -> Int
+            func completed(matching prefix: String, limit: Int?) -> Int
+        }
+    }
+
+    @Interface
     struct Root: Root.`Protocol` {
         protocol `Protocol` {
             associatedtype Items: Store.Items.`Protocol`
@@ -35,6 +44,11 @@ private func useGeneric<Items: Store.Items.`Protocol`>(_ items: Items) throws(St
 
 private func useGeneric<Root: Store.Root.`Protocol`>(_ root: Root) throws(Store.Failure) -> Int {
     try root.items.add(.init(value: "ab"))
+}
+
+private func useGeneric<Removal: Store.Removal.Interface>(_ removal: Removal) throws(Store.Failure) -> Int {
+    try removal(.init(value: "x"))
+    return removal.completed(in: "abc")
 }
 
 @Suite
@@ -97,5 +111,26 @@ private struct `Wrapper Tests` {
     @Test
     func `the struct witnesses its protocol through its stored callables`() throws {
         #expect(try useGeneric(items) == 4)
+    }
+
+    @Test
+    func `an interface may be its own primary operation and overload a base name`() throws {
+        let removal = Store.Removal(
+            { request throws(Store.Failure) in
+                guard !request.item.value.isEmpty else { throw .missing }
+            },
+            completed: .init(
+                in: { $0.bucket.count },
+                matching: { $0.prefix.count + ($0.limit ?? 0) }
+            )
+        )
+
+        try removal(.init(value: "x"))
+        #expect(throws: Store.Failure.missing) { try removal(.init(value: "")) }
+        #expect(removal.completed(in: "abc") == 3)
+        #expect(removal.completed(matching: "ab", limit: 5) == 7)
+        #expect(removal.completed(Store.Removal.Completed.In.Request(in: "abcd")) == 4)
+        #expect(Store.Removal.Request(.init(value: "x")).item == .init(value: "x"))
+        #expect(try useGeneric(removal) == 3)
     }
 }
