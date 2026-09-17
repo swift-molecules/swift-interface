@@ -389,11 +389,12 @@ extension Interface.Derivation {
         var name: String { function.name.text }
         var symbol: String { isPrimary ? "Call" : coordinate.symbol.text }
         var caseName: String {
-            let base = isPrimary ? "call" : name
-            return variant.map { "\(base)\($0)" } ?? base
+            if isPrimary { return variant.map { "\($0.prefix(1).lowercased())\($0.dropFirst())" } ?? "call" }
+            return variant.map { "\(name)\($0)" } ?? name
         }
         var symbolName: String {
-            variant.map { "\(symbol)\($0)" } ?? symbol
+            if isPrimary { return variant ?? "Call" }
+            return variant.map { "\(symbol)\($0)" } ?? symbol
         }
         var key: String {
             guard let variant else { return "run" }
