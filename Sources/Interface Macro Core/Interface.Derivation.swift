@@ -90,8 +90,10 @@ extension Interface {
             owner: String,
             access: String
         ) -> [DeclSyntax] {
+            // The primary operation has no name at its call site (`reminders.read()`), so its closure has none in
+            // the owner's initializer either: `run` is storage, never spelled by the reader.
             let parameters = model.analysis.functionCoordinates.map { function in
-                "\(function.storage): @escaping \(function.closureType.trimmedDescription)"
+                "\(function.storage == "run" ? "_ run" : function.storage): @escaping \(function.closureType.trimmedDescription)"
             } + model.analysis.propertyCoordinates.map { property in
                 "\(property.name.text): \(property.type.trimmedDescription)"
             }
