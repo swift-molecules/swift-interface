@@ -28,6 +28,9 @@ extension Interface {
 
         public var symbols: [Symbol] { operations.symbols }
 
+        /// The unlabelled primary operation, when there is one: the interface is then this operation's symbol.
+        public var run: Symbol? { symbols.first { $0.isPrimary && $0.variant == nil } }
+
         public static let derived = [
             "Model",
             "Product",

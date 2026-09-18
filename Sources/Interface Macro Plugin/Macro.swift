@@ -8,7 +8,7 @@ public struct Macro: MemberMacro, ExtensionMacro {
         of _: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
         conformingTo _: [TypeSyntax],
-        in _: some MacroExpansionContext
+        in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] {
         guard let owner = declaration.as(StructDeclSyntax.self) else { return [] }
         guard Self.conformsToSemantic(owner) else {
