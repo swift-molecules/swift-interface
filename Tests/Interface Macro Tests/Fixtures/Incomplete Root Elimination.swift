@@ -2,6 +2,7 @@ import Interface_Macro
 
 @Interface
 struct Greeting: Greeting.`Protocol` {
+    @Operations
     protocol `Protocol` {
         func greet(_ name: String) -> String
     }
@@ -9,6 +10,7 @@ struct Greeting: Greeting.`Protocol` {
 
 @Interface
 struct Counter: Counter.`Protocol` {
+    @Operations
     protocol `Protocol` {
         func increment(_ value: Int) -> Int
     }
@@ -16,6 +18,7 @@ struct Counter: Counter.`Protocol` {
 
 @Interface
 struct Example: Example.`Protocol` {
+    @Operations
     protocol `Protocol` {
         associatedtype Greeting: Proof::Greeting.`Protocol`
         associatedtype Counter: Proof::Counter.`Protocol`

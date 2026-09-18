@@ -7,6 +7,7 @@ struct Finite: Finite.`Protocol` {
         case refused
     }
 
+    @Operations
     protocol `Protocol` {
         func first(_ value: Int) -> String
         func second(_ flag: Bool) throws(Failure) -> Int
@@ -18,8 +19,8 @@ private func requireEscapable<Value: Escapable>(_: Value) {}
 
 @Test
 func `one declaration derives leaves product and call coproduct`() {
-    let first = Finite.Operations.First.Application(.init(1))
-    let second = Finite.Operations.Second.Application(.init(true))
+    let first = Finite.First.Application(.init(1))
+    let second = Finite.Second.Application(.init(true))
     let call = Finite.Call.second(true)
     let eliminate = Finite.Call.Eliminator<String>(
         first: { "first=\($0.input.value)" },
@@ -27,12 +28,12 @@ func `one declaration derives leaves product and call coproduct`() {
     )
     let output = eliminate(call)
 
-    let _: Finite.Operations.First.Input = first.input
-    let _: Finite.Operations.First.Output = "one"
-    let _: Finite.Operations.First.Failure.Type = Never.self
-    let _: Finite.Operations.Second.Input = second.input
-    let _: Finite.Operations.Second.Output = 2
-    let _: Finite.Operations.Second.Failure.Type = Finite.Failure.self
+    let _: Finite.First.Input = first.input
+    let _: Finite.First.Output = "one"
+    let _: Finite.First.Failure.Type = Never.self
+    let _: Finite.Second.Input = second.input
+    let _: Finite.Second.Output = 2
+    let _: Finite.Second.Failure.Type = Finite.Failure.self
     #expect(output == "second=true")
     requireCopyable(Finite.Call.first(1))
     requireEscapable(Finite.Call.second(true))

@@ -20,7 +20,7 @@ private struct `Compiler Tests` {
 
         #expect(
             diagnostic.contains(
-                "cannot convert value of type 'Either<Counter.Operations.Increment.Failure, Counter.Operations.Increment.Output>'"
+                "cannot convert value of type 'Either<Counter.Increment.Failure, Counter.Increment.Output>'"
             )
         )
     }
@@ -91,7 +91,7 @@ private struct `Compiler Tests` {
     func `signature rejects inout state transitions`() throws {
         let diagnostic = try typecheckFailure(named: "Inout Interface.swift")
 
-        #expect(diagnostic.contains("owned snapshot, not a state transition"))
+        #expect(diagnostic.contains("owned value, not a state transition"))
     }
 
     private func typecheckFailure(named name: String) throws -> String {
@@ -121,6 +121,7 @@ private struct `Compiler Tests` {
         ] + [
             "Interface Macro Plugin#Interface_Macro_Plugin",
             "Product Macro Plugin#Product_Macro_Plugin",
+            "Operation Macro Plugin#Operation_Macro_Plugin",
             "Prism Macro Plugin#Prism_Macro_Plugin",
             "Fold Macro Plugin#Fold_Macro_Plugin",
             "Case Macro Plugin#Case_Macro_Plugin",

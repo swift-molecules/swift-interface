@@ -11,6 +11,7 @@ struct Greeting: Greeting.`Protocol` {
         var value: String
     }
 
+    @Operations
     protocol `Protocol` {
         func greet(_ name: Name) async -> Message
     }
@@ -30,6 +31,7 @@ struct Counter: Counter.`Protocol` {
         case exceeded
     }
 
+    @Operations
     protocol `Protocol` {
         func increment(limit: Limit) async throws(Error) -> Value
     }
@@ -37,6 +39,7 @@ struct Counter: Counter.`Protocol` {
 
 @Interface
 struct Example: Example.`Protocol` {
+    @Operations
     protocol `Protocol` {
         associatedtype Greeting: Interface_Macro_Tests::Greeting.`Protocol`
         associatedtype Counter: Interface_Macro_Tests::Counter.`Protocol`
@@ -52,6 +55,7 @@ struct Nested: Nested.`Protocol` {
     struct Output: Hashable {}
     enum Failure: Swift.Error {}
 
+    @Operations
     protocol `Protocol` {
         func transform(
             _ values: [Input]
@@ -69,6 +73,7 @@ struct Numerals: Numerals.`Protocol` {
         case unreadable
     }
 
+    @Operations
     protocol `Protocol` {
         func digit(_ digit: Numeral) throws(Failure) -> Numeral
     }
@@ -80,6 +85,7 @@ struct Linear: Linear.`Protocol` {
         let value: Int
     }
 
+    @Operations
     protocol `Protocol` {
         func consume(_ token: consuming Token) -> Int
     }
@@ -87,6 +93,7 @@ struct Linear: Linear.`Protocol` {
 
 @Interface
 struct LinearExample: LinearExample.`Protocol` {
+    @Operations
     protocol `Protocol` {
         associatedtype Linear: Interface_Macro_Tests::Linear.`Protocol`
 
@@ -100,6 +107,7 @@ struct LinearPair: LinearPair.`Protocol` {
         let value: Int
     }
 
+    @Operations
     protocol `Protocol` {
         func combine(
             _ first: consuming Token,
@@ -110,6 +118,7 @@ struct LinearPair: LinearPair.`Protocol` {
 
 @Interface
 struct Observation: Observation.`Protocol` {
+    @Operations
     protocol `Protocol` {
         func inspect(_ value: borrowing Int) -> Int
     }
@@ -117,6 +126,7 @@ struct Observation: Observation.`Protocol` {
 
 @Interface
 struct Owned: Owned.`Protocol` {
+    @Operations
     protocol `Protocol` {
         func consume(_ value: consuming Int) -> Int
     }
@@ -163,7 +173,7 @@ struct `Domain Tests` {
 
     @Test
     func `operation application carries its input and dependent result family`() {
-        let operation = Greeting.Operations.Greet.Application(
+        let operation = Greeting.Greet.Application(
             .init(Greeting.Name(value: "Blob"))
         )
         let result = success(
@@ -312,7 +322,7 @@ struct `Domain Tests` {
         let eliminate = Owned.Call.Eliminator<Int>(
             consume: { $0.input.value }
         )
-        requireEscapable(Owned.Consume.Request(7))
+        requireEscapable(Owned.Consume.Input(7))
 
         #expect(eliminate(call) == 7)
         requireEscapable(call)
@@ -332,11 +342,11 @@ struct `Domain Tests` {
 
     @Test
     func `a value type nested in the owner stays qualified`() throws {
-        let application = Numerals.Operations.Digit.Application(.init(.init(value: 7)))
+        let application = Numerals.Digit.Application(.init(.init(value: 7)))
         let _: Numerals.Numeral = application.input.digit
-        let _: Numerals.Operations.Digit.Input.Type = Numerals.Digit.Request.self
-        let _: Numerals.Operations.Digit.Output.Type = Numerals.Numeral.self
-        let _: Numerals.Operations.Digit.Failure.Type = Numerals.Failure.self
+        let _: Numerals.Digit.Input.Type = Numerals.Digit.Input.self
+        let _: Numerals.Digit.Output.Type = Numerals.Numeral.self
+        let _: Numerals.Digit.Failure.Type = Numerals.Failure.self
         let eliminate = Numerals.Call.Eliminator<Numerals.Numeral>(
             digit: { $0.input.digit }
         )
@@ -346,13 +356,13 @@ struct `Domain Tests` {
 
     @Test
     func `nested domain types remain qualified throughout syntax trees`() {
-        let application = Nested.Operations.Transform.Application(.init([.init()]))
-        let _: Nested.Operations.Transform.Input = application.input
-        let _: Nested.Operations.Transform.Output.Type = Swift.Result<
+        let application = Nested.Transform.Application(.init([.init()]))
+        let _: Nested.Transform.Input = application.input
+        let _: Nested.Transform.Output.Type = Swift.Result<
             Nested.Output,
             Nested.Failure
         >.self
-        let _: Nested.Operations.Transform.Failure.Type = Nested.Failure.self
+        let _: Nested.Transform.Failure.Type = Nested.Failure.self
     }
 
     @Test

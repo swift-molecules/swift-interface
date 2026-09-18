@@ -1,58 +1,13 @@
-public import SwiftSyntax
+public import Operation_Macro_Core
 public import Product_Macro_Core
-import SwiftSyntaxBuilder
+public import SwiftSyntax
 
 extension Interface {
+    // An interface read as its operations (Operation.Analysis, whose symbols @Operations declares beside the
+    // protocol) and its children (the getters of the product). @Interface derives nothing about an operation
+    // itself; it composes symbols into a model, a Call and an interpreter.
     public struct Analysis {
-        public struct Coordinate {
-            public struct Input {
-                public let parameter: Product.Analysis.Parameter
-                public let label: TokenSyntax
-                public let type: TypeSyntax
-                public let expression: ExprSyntax
-            }
-
-            public let function: Product.Analysis.Function
-            public let symbol: TokenSyntax
-            public let inputs: [Input]
-            public let output: TypeSyntax
-            public let failure: TypeSyntax
-
-            public var declaration: FunctionDeclSyntax { function.declaration }
-            public var name: TokenSyntax { function.name }
-
-            fileprivate init(
-                _ function: Product.Analysis.Function,
-                owner: TypeSyntax,
-                shadowed: Set<String>
-            ) {
-                self.function = function
-                symbol = .identifier(Self.symbolName(function.name.text))
-                let qualify = DomainQualifier(owner: owner, names: shadowed)
-                inputs = function.parameters.map { parameter in
-                    let declaration = parameter.declaration
-                    let source = declaration.firstName.tokenKind == .wildcard
-                        ? parameter.localName
-                        : declaration.firstName
-                    return Input(
-                        parameter: parameter,
-                        label: .identifier(source.text),
-                        type: qualify.rewrite(parameter.valueType),
-                        expression: parameter.ownedExpression
-                    )
-                }
-                output = qualify.rewrite(function.output)
-                failure = function.thrownError.map(qualify.rewrite)
-                    ?? TypeSyntax(
-                        stringLiteral: function.isUntypedThrows ? "any Swift.Error" : "Never"
-                    )
-            }
-
-            static func symbolName(_ operation: String) -> String {
-                guard let first = operation.first else { return operation }
-                return String(first).uppercased() + String(operation.dropFirst())
-            }
-        }
+        public typealias Symbol = Operation.Analysis.Symbol
 
         public struct Child {
             public let declaration: VariableDeclSyntax
@@ -67,18 +22,15 @@ extension Interface {
         public let declaration: ProtocolDeclSyntax
         public let owner: TypeSyntax
         public let product: Product.Analysis
-        public let coordinates: [Coordinate]
+        public let operations: Operation.Analysis
         public let children: [Child]
-        public let bindings: [TypeSyntax]
         public let diagnostics: [String]
 
+        public var symbols: [Symbol] { operations.symbols }
+
         public static let derived = [
-            "Input",
-            "Output",
-            "Failure",
-            "Operations",
-            "Product",
             "Model",
+            "Product",
             "Client",
             "Coproduct",
             "Call",
@@ -96,42 +48,26 @@ extension Interface {
             self.owner = owner
             let product = Product.Analysis(declaration)
             self.product = product
-            let shadowed = Set(
-                Self.derived + product.functionCoordinates.map {
-                    Coordinate.symbolName($0.name.text)
-                }
-            )
-            coordinates = product.functionCoordinates.map {
-                Coordinate($0, owner: owner, shadowed: shadowed)
-            }
+            operations = Operation.Analysis(declaration: declaration, owner: owner, shadowed: Set(Self.derived))
 
-            var reasons = product.diagnostics
+            var reasons = product.diagnostics + operations.diagnostics
             if declaration.inheritanceClause != nil {
                 reasons.append("inherited protocols are not a closed finite signature")
             }
-            for function in product.functionCoordinates {
-                for parameter in function.parameters where parameter.isInout {
-                    reasons.append(
-                        "`\(function.name.text)` has an inout parameter; a signature Call is an owned snapshot, not a state transition"
-                    )
-                }
+            if !declaration.attributes.contains(where: { attribute in
+                attribute.as(AttributeSyntax.self)?.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "Operations"
+            }) {
+                reasons.append("the interface's protocol must carry @Operations, which declares the symbols the interface composes")
             }
 
             var domains: [String: TypeSyntax] = [:]
-            var bindings: [TypeSyntax] = []
             for coordinate in product.associatedTypeCoordinates {
                 guard let domain = Self.domain(of: coordinate) else {
-                    reasons.append(
-                        "`\(coordinate.declaration.trimmedDescription)` does not name a child semantic protocol"
-                    )
+                    reasons.append("`\(coordinate.declaration.trimmedDescription)` does not name a child semantic protocol")
                     continue
                 }
                 domains[coordinate.name.text] = domain
-                bindings.append(
-                    TypeSyntax(MemberTypeSyntax(baseType: domain, name: .identifier("Product")))
-                )
             }
-            self.bindings = bindings
 
             var usedDomains: Set<String> = []
             var recognizedChildren: [Child] = []
@@ -143,17 +79,12 @@ extension Interface {
                     let domain = domains[associated.name.text]
                 {
                     usedDomains.insert(associated.name.text)
-                    recognizedChildren.append(
-                        Child(declaration: property.declaration, name: property.name, domain: domain)
-                    )
+                    recognizedChildren.append(Child(declaration: property.declaration, name: property.name, domain: domain))
                 } else {
-                    recognizedChildren.append(
-                        Child(declaration: property.declaration, name: property.name, domain: property.type.trimmed)
-                    )
+                    recognizedChildren.append(Child(declaration: property.declaration, name: property.name, domain: property.type.trimmed))
                 }
             }
-            for coordinate in product.associatedTypeCoordinates
-            where !usedDomains.contains(coordinate.name.text) {
+            for coordinate in product.associatedTypeCoordinates where !usedDomains.contains(coordinate.name.text) {
                 reasons.append("`\(coordinate.name.text)` has no getter coordinate")
             }
             children = recognizedChildren
@@ -172,34 +103,5 @@ extension Interface {
             else { return nil }
             return semantic.baseType
         }
-    }
-}
-
-
-private final class DomainQualifier: SyntaxRewriter {
-    let owner: TypeSyntax
-    let names: Set<String>
-
-    init(owner: TypeSyntax, names: Set<String>) {
-        self.owner = owner
-        self.names = names
-    }
-
-    func rewrite(_ type: TypeSyntax) -> TypeSyntax {
-        TypeSyntax(visit(type))
-    }
-
-    override func visit(_ node: IdentifierTypeSyntax) -> TypeSyntax {
-        guard
-            node.moduleSelector == nil,
-            node.genericArgumentClause == nil,
-            names.contains(node.name.text)
-        else { return super.visit(node) }
-        return TypeSyntax(
-            MemberTypeSyntax(
-                baseType: owner.trimmed,
-                name: .identifier(node.name.text)
-            )
-        )
     }
 }

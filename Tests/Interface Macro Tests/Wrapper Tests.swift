@@ -13,6 +13,7 @@ enum Store {
 
     @Interface
     struct Items: Items.`Protocol` {
+        @Operations
         protocol `Protocol` {
             func add(_ item: Store.Item) throws(Store.Failure) -> Int
             func remove(_ item: Store.Item, replacement: Store.Item) throws
@@ -22,6 +23,7 @@ enum Store {
 
     @Interface
     struct Removal: Removal.Interface {
+        @Operations
         protocol Interface {
             func callAsFunction(_ item: Store.Item) throws(Store.Failure)
             func callAsFunction(today: String) -> Int
@@ -32,6 +34,7 @@ enum Store {
 
     @Interface
     struct Root: Root.`Protocol` {
+        @Operations
         protocol `Protocol` {
             associatedtype Items: Store.Items.`Protocol`
 
@@ -87,25 +90,25 @@ private struct `Wrapper Tests` {
         let _: any Store.Items.Model = product
 
         #expect(try items.add(.init(value: "Blob")) == 4)
-        #expect(try product.add(Store.Items.Add.Request(.init(value: "Blob"))) == 4)
+        #expect(try product.add(Store.Items.Add.Input(.init(value: "Blob"))) == 4)
     }
 
     @Test
     func `each operation carries its request as data and its result by name`() throws {
-        let request = Store.Items.Add.Request(.init(value: "Blob"))
-        let result: Store.Items.Add.Result = try items.add(request)
+        let request = Store.Items.Add.Input(.init(value: "Blob"))
+        let result: Store.Items.Add.Output = try items.add(request)
 
         #expect(request.item == .init(value: "Blob"))
         #expect(result == 4)
-        #expect(Store.Items.Remove.Request(.init(value: "a"), replacement: .init(value: "b")).replacement == .init(value: "b"))
+        #expect(Store.Items.Remove.Input(.init(value: "a"), replacement: .init(value: "b")).replacement == .init(value: "b"))
     }
 
     @Test
     func `an operation's input is its request`() {
-        let _: Store.Items.Operations.Add.Input.Type = Store.Items.Add.Request.self
-        let _: Store.Items.Operations.Remove.Input.Type = Store.Items.Remove.Request.self
-        let _: Store.Removal.Operations.Item.Input.Type = Store.Removal.Item.Request.self
-        var request = Store.Items.Add.Request(.init(value: "Blob"))
+        let _: Store.Items.Add.Input.Type = Store.Items.Add.Input.self
+        let _: Store.Items.Remove.Input.Type = Store.Items.Remove.Input.self
+        let _: Store.Removal.Item.Input.Type = Store.Removal.Item.Input.self
+        var request = Store.Items.Add.Input(.init(value: "Blob"))
         request.item.value = "Other"
 
         #expect(request.item == .init(value: "Other"))
@@ -143,8 +146,8 @@ private struct `Wrapper Tests` {
 
     @Test
     func `untyped throws is the any Error sort`() {
-        let _: Store.Items.Operations.Remove.Failure.Type = (any Swift.Error).self
-        let _: Store.Items.Operations.Count.Failure.Type = Never.self
+        let _: Store.Items.Remove.Failure.Type = (any Swift.Error).self
+        let _: Store.Items.Count.Failure.Type = Never.self
     }
 
     @Test
@@ -177,10 +180,10 @@ private struct `Wrapper Tests` {
         #expect(throws: Store.Failure.missing) { try removal(.init(value: "")) }
         #expect(removal.completed(in: "abc") == 3)
         #expect(removal.completed(matching: "ab", limit: 5) == 7)
-        #expect(removal.completed(Store.Removal.Completed.In.Request(in: "abcd")) == 4)
-        #expect(Store.Removal.Item.Request(.init(value: "x")).item == .init(value: "x"))
+        #expect(removal.completed(Store.Removal.CompletedIn.Input(in: "abcd")) == 4)
+        #expect(Store.Removal.Item.Input(.init(value: "x")).item == .init(value: "x"))
         #expect(removal(today: "ab") == 20)
-        #expect(removal(Store.Removal.Today.Request(today: "abc")) == 30)
+        #expect(removal(Store.Removal.Today.Input(today: "abc")) == 30)
         #expect(try useGeneric(removal) == 3)
     }
 }
