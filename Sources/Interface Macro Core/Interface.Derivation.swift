@@ -144,17 +144,18 @@ extension Interface {
         }
 
         // A request is the product of an operation's parameters, with the declaration's labels on its
-        // initializer. Its capabilities are whatever the compiler synthesizes from its fields: Hashable is
-        // declared (a request is a value), Copyable is suppressed when a parameter is transferred, and nothing
-        // is said about Sendable.
+        // initializer. Its capabilities are whatever the compiler synthesizes from its fields: Hashable (a
+        // request is a value) and Sendable (declared for convenience — a public type gets no implicit Sendable,
+        // and a request crosses into storage tasks; nothing in the interface itself relies on it) are declared
+        // and checked; Copyable is suppressed when a parameter is transferred.
         private static func request(
             _ operation: Operation,
             access: String
         ) -> String {
             let coordinate = operation.coordinate
             let header = operation.transfers
-                ? "\(access)struct Request: ~Copyable {"
-                : "\(access)struct Request: Swift.Hashable {"
+                ? "\(access)struct Request: ~Copyable, Swift.Sendable {"
+                : "\(access)struct Request: Swift.Hashable, Swift.Sendable {"
             let fields = coordinate.inputs.map { input in
                 "\(access)var \(input.parameter.localName.text): \(input.type.trimmedDescription)"
             }.joined(separator: "\n")
