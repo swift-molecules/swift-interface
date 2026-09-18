@@ -23,8 +23,8 @@ func `signature coordinates are reusable syntax backed derivation input`() throw
 
     #expect(coordinate.declaration.name.text == "transform")
     #expect(coordinate.function.name.text == productFunction.name.text)
-    #expect(coordinate.input.trimmedDescription == "[Domain.Input]")
-    #expect(coordinate.inputExpression.trimmedDescription == "values")
+    #expect(coordinate.inputs.map(\.type.trimmedDescription) == ["[Domain.Input]"])
+    #expect(coordinate.inputs.map(\.expression.trimmedDescription) == ["values"])
     #expect(
         coordinate.output.trimmedDescription
             == "Result<Domain.Output, Domain.Failure>"
@@ -48,11 +48,8 @@ func `signature input type and value are rendered from one parameter analysis`()
     )
     let coordinate = try #require(signature.coordinates.first)
 
-    #expect(coordinate.input.trimmedDescription == "(input: Domain.Input, with: Domain.Output)")
-    #expect(
-        coordinate.inputExpression.trimmedDescription
-            == "(input: copy input, with: output)"
-    )
+    #expect(coordinate.inputs.map(\.type.trimmedDescription) == ["Domain.Input", "Domain.Output"])
+    #expect(coordinate.inputs.map(\.expression.trimmedDescription) == ["copy input", "output"])
     #expect(coordinate.inputs.map(\.label.text) == ["input", "with"])
     #expect(coordinate.function.parameters.map(\.closureType.trimmedDescription) == [
         "borrowing Input",

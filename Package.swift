@@ -46,6 +46,7 @@ let package = Package(
             name: "Interface Macro",
             dependencies: [
                 "Interface Macro Plugin",
+                .product(name: "Case Macro", package: "swift-optic"),
                 .product(name: "Eliminator Macro", package: "swift-coproduct"),
                 .product(name: "Fold Macro", package: "swift-optic"),
                 .product(name: "Operation", package: "swift-operation"),

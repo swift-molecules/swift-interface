@@ -1,3 +1,4 @@
+@_exported import Case_Macro
 @_exported import Eliminator_Macro
 @_exported import Fold_Macro
 @_exported import Operation
@@ -10,10 +11,4 @@
 public macro Interface() = #externalMacro(
     module: "Interface_Macro_Plugin",
     type: "Macro"
-)
-
-@attached(extension, conformances: Copyable, Sendable, Equatable, Hashable, names: named(==), named(hash(into:)))
-public macro Structural() = #externalMacro(
-    module: "Interface_Macro_Plugin",
-    type: "Structural"
 )

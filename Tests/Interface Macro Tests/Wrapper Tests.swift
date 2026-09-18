@@ -81,10 +81,13 @@ private struct `Wrapper Tests` {
     }
 
     @Test
-    func `operations are reachable by property key path`() throws {
-        let add = items[keyPath: \.add]
+    func `the model is the product of the request-typed operations`() throws {
+        let product = Store.Items.Product(add: { $0.item.value.count }, remove: { _ in }, count: { _ in 3 })
+        let items = Store.Items(product)
+        let _: any Store.Items.Model = product
 
-        #expect(try add(.init(value: "Blob")) == 4)
+        #expect(try items.add(.init(value: "Blob")) == 4)
+        #expect(try product.add(Store.Items.Add.Request(.init(value: "Blob"))) == 4)
     }
 
     @Test
@@ -166,10 +169,8 @@ private struct `Wrapper Tests` {
                 guard !request.item.value.isEmpty else { throw .missing }
             },
             today: { $0.today.count * 10 },
-            completed: .init(
-                in: { $0.bucket.count },
-                matching: { $0.prefix.count + ($0.limit ?? 0) }
-            )
+            completedIn: { $0.bucket.count },
+            completedMatching: { $0.prefix.count + ($0.limit ?? 0) }
         )
 
         try removal(.init(value: "x"))

@@ -123,6 +123,7 @@ private struct `Compiler Tests` {
             "Product Macro Plugin#Product_Macro_Plugin",
             "Prism Macro Plugin#Prism_Macro_Plugin",
             "Fold Macro Plugin#Fold_Macro_Plugin",
+            "Case Macro Plugin#Case_Macro_Plugin",
             "Eliminator Macro Plugin#Eliminator_Macro_Plugin",
         ].flatMap { plugin in
             [

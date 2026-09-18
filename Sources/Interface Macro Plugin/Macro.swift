@@ -3,68 +3,6 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
-public struct Structural: ExtensionMacro {
-    public static func expansion(
-        of _: AttributeSyntax,
-        attachedTo declaration: some DeclGroupSyntax,
-        providingExtensionsOf type: some TypeSyntaxProtocol,
-        conformingTo _: [TypeSyntax],
-        in _: some MacroExpansionContext
-    ) throws -> [ExtensionDeclSyntax] {
-        guard
-            let enumeration = declaration.as(EnumDeclSyntax.self),
-            let parameters = enumeration.genericParameterClause?.parameters,
-            !parameters.isEmpty
-        else {
-            throw MacroExpansionErrorMessage(
-                "@Structural applies to a generic enum whose summands are its generic parameters."
-            )
-        }
-        let access = enumeration.modifiers.first {
-            $0.name.tokenKind == .keyword(.public) || $0.name.tokenKind == .keyword(.package)
-        }.map { "\($0.name.text) " } ?? ""
-        let cases = enumeration.memberBlock.members.flatMap { member in
-            member.decl.as(EnumCaseDeclSyntax.self)?.elements.map(\.name.text) ?? []
-        }
-        func requirements(_ capability: String) -> String {
-            parameters.map { "\($0.name.text): \(capability)" }.joined(separator: ", ")
-        }
-        // Each capability holds exactly when every summand has it; the compiler,
-        // not this macro, decides per instantiation. Equatable and Hashable are
-        // spelled out: synthesis inside a conditional extension of a ~Copyable
-        // enum is typechecked but never emitted (undefined conformance descriptor).
-        let equality = cases.map { name in
-            "case let (.\(name)(lhs), .\(name)(rhs)): return lhs == rhs"
-        } + (cases.count > 1 ? ["default: return false"] : [])
-        let hashing = cases.enumerated().map { offset, name in
-            "case let .\(name)(value): hasher.combine(\(offset)); hasher.combine(value)"
-        }
-        let declarations: [DeclSyntax] = [
-            "extension \(raw: type.trimmed): Copyable where \(raw: requirements("Copyable")) {}",
-            "extension \(raw: type.trimmed): Swift.Sendable where \(raw: requirements("Swift.Sendable")) {}",
-            """
-            extension \(raw: type.trimmed): Swift.Equatable where \(raw: requirements("Swift.Equatable")) {
-                \(raw: access)static func == (lhs: Self, rhs: Self) -> Swift.Bool {
-                    switch (lhs, rhs) {
-                    \(raw: equality.joined(separator: "\n"))
-                    }
-                }
-            }
-            """,
-            """
-            extension \(raw: type.trimmed): Swift.Hashable where \(raw: requirements("Swift.Hashable")) {
-                \(raw: access)func hash(into hasher: inout Swift.Hasher) {
-                    switch self {
-                    \(raw: hashing.joined(separator: "\n"))
-                    }
-                }
-            }
-            """,
-        ]
-        return declarations.map { $0.cast(ExtensionDeclSyntax.self) }
-    }
-}
-
 public struct Macro: MemberMacro, ExtensionMacro {
     public static func expansion(
         of _: AttributeSyntax,

@@ -15,8 +15,6 @@ extension Interface {
             public let function: Product.Analysis.Function
             public let symbol: TokenSyntax
             public let inputs: [Input]
-            public let input: TypeSyntax
-            public let inputExpression: ExprSyntax
             public let output: TypeSyntax
             public let failure: TypeSyntax
 
@@ -43,67 +41,11 @@ extension Interface {
                         expression: parameter.ownedExpression
                     )
                 }
-                input = Self.input(of: inputs)
-                inputExpression = Self.inputExpression(of: inputs)
                 output = qualify.rewrite(function.output)
                 failure = function.thrownError.map(qualify.rewrite)
                     ?? TypeSyntax(
                         stringLiteral: function.isUntypedThrows ? "any Swift.Error" : "Never"
                     )
-            }
-
-            private static func input(
-                of inputs: [Input]
-            ) -> TypeSyntax {
-                switch inputs.count {
-                case 0:
-                    return TypeSyntax(IdentifierTypeSyntax(name: .identifier("Void")))
-                case 1:
-                    return inputs[inputs.startIndex].type
-                default:
-                    let elements = inputs.enumerated().map { offset, input in
-                        return TupleTypeElementSyntax(
-                            firstName: input.label,
-                            colon: .colonToken(trailingTrivia: .space),
-                            type: input.type,
-                            trailingComma: offset == inputs.count - 1
-                                ? nil
-                                : .commaToken(trailingTrivia: .space)
-                        )
-                    }
-                    return TypeSyntax(
-                        TupleTypeSyntax(elements: TupleTypeElementListSyntax(elements))
-                    )
-                }
-            }
-
-            private static func inputExpression(
-                of inputs: [Input]
-            ) -> ExprSyntax {
-                switch inputs.count {
-                case 0:
-                    return ExprSyntax(
-                        TupleExprSyntax(elements: LabeledExprListSyntax([]))
-                    )
-                case 1:
-                    return inputs[0].expression
-                default:
-                    let elements = inputs.enumerated().map { offset, input in
-                        LabeledExprSyntax(
-                            label: input.label,
-                            colon: .colonToken(trailingTrivia: .space),
-                            expression: input.expression,
-                            trailingComma: offset == inputs.count - 1
-                                ? nil
-                                : .commaToken(trailingTrivia: .space)
-                        )
-                    }
-                    return ExprSyntax(
-                        TupleExprSyntax(
-                            elements: LabeledExprListSyntax(elements)
-                        )
-                    )
-                }
             }
 
             static func symbolName(_ operation: String) -> String {
@@ -136,6 +78,7 @@ extension Interface {
             "Failure",
             "Operations",
             "Product",
+            "Model",
             "Client",
             "Coproduct",
             "Call",
