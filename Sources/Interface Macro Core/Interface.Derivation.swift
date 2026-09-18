@@ -274,7 +274,7 @@ extension Interface {
 
                     \(forwarding)
 
-                        \(access)struct Embedding<Root> {
+                        \(access)struct Embedding<Root: ~Copyable> {
                             \(access)let embed: (consuming Coproduct) -> Root
 
                             \(access)init(_ embed: @escaping (consuming Coproduct) -> Root) {
