@@ -12,7 +12,7 @@ public macro Interface() = #externalMacro(
     type: "Macro"
 )
 
-@attached(extension, conformances: Copyable)
+@attached(extension, conformances: Copyable, Sendable, Equatable, Hashable, names: named(==), named(hash(into:)))
 public macro Structural() = #externalMacro(
     module: "Interface_Macro_Plugin",
     type: "Structural"

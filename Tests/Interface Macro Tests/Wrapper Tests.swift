@@ -1,4 +1,5 @@
 import Interface_Macro
+import Synchronization
 import Testing
 
 enum Store {
@@ -38,6 +39,9 @@ enum Store {
         }
     }
 }
+
+private func requireSendable<Value: Sendable>(_: Value) {}
+private func requireHashable<Value: Hashable>(_: Value) {}
 
 private func useGeneric<Items: Store.Items.`Protocol`>(_ items: Items) throws(Store.Failure) -> Int {
     try items.add(.init(value: "Blob"))
@@ -91,6 +95,47 @@ private struct `Wrapper Tests` {
         #expect(request.item == .init(value: "Blob"))
         #expect(result == 4)
         #expect(Store.Items.Remove.Request(.init(value: "a"), replacement: .init(value: "b")).replacement == .init(value: "b"))
+    }
+
+    @Test
+    func `an operation's input is its request`() {
+        let _: Store.Items.Operations.Add.Input.Type = Store.Items.Add.Request.self
+        let _: Store.Items.Operations.Remove.Input.Type = Store.Items.Remove.Request.self
+        let _: Store.Removal.Operations.Item.Input.Type = Store.Removal.Item.Request.self
+        var request = Store.Items.Add.Request(.init(value: "Blob"))
+        request.item.value = "Other"
+
+        #expect(request.item == .init(value: "Other"))
+        #expect(Store.Items.Call.add(.init(value: "Blob")) == .add(.init(value: "Blob")))
+        #expect(Store.Items.Call.add(.init(value: "Blob")) != .add(.init(value: "Other")))
+        requireSendable(Store.Items.Call.add(.init(value: "Blob")))
+        requireHashable(Store.Items.Call.add(.init(value: "Blob")))
+        requireSendable(Store.Root.Call.items(.count()))
+        requireHashable(Store.Root.Call.items(.count()))
+    }
+
+    @Test
+    func `an interface interprets its calls against the stored arrows`() async throws {
+        let removed = Mutex<[Store.Item]>([])
+        let items = Store.Items(
+            add: { $0.item.value.count },
+            remove: { request in removed.withLock { $0 += [request.item, request.replacement] } },
+            count: { _ in 3 }
+        )
+        let root = Store.Root(items: items)
+
+        try await items(.remove(.init(value: "a"), replacement: .init(value: "b")))
+        try await root(.items(.remove(.init(value: "c"), replacement: .init(value: "d"))))
+        try await items(.add(.init(value: "")))
+
+        #expect(removed.withLock { $0 } == [.init(value: "a"), .init(value: "b"), .init(value: "c"), .init(value: "d")])
+        await #expect(throws: Store.Failure.missing) {
+            try await Store.Items(
+                add: { _ throws(Store.Failure) in throw .missing },
+                remove: { _ in },
+                count: { _ in 0 }
+            )(.add(.init(value: "")))
+        }
     }
 
     @Test

@@ -164,14 +164,14 @@ struct `Domain Tests` {
     @Test
     func `operation application carries its input and dependent result family`() {
         let operation = Greeting.Operations.Greet.Application(
-            Greeting.Name(value: "Blob")
+            .init(Greeting.Name(value: "Blob"))
         )
         let result = success(
             operation,
             Greeting.Message(value: "Hello, Blob!")
         )
 
-        #expect(operation.input == .init(value: "Blob"))
+        #expect(operation.input.name == .init(value: "Blob"))
         switch result {
         case let .right(message):
             #expect(message == .init(value: "Hello, Blob!"))
@@ -184,7 +184,7 @@ struct `Domain Tests` {
     func `call directly stores its operation leaf and eliminates exhaustively`() {
         let call = Greeting.Call.greet(.init(value: "Blob"))
         let eliminate = Greeting.Call.Eliminator<Greeting.Name>(
-            greet: { $0.input }
+            greet: { $0.input.name }
         )
         let name = eliminate(call)
 
@@ -197,7 +197,7 @@ struct `Domain Tests` {
 
         switch Greeting.Call.prisms.greet.match(call) {
         case let .right(application):
-            let name: Greeting.Name = application.input
+            let name: Greeting.Name = application.input.name
             #expect(name == Greeting.Name(value: "Blob"))
         case .left:
             Issue.record("Expected the greet prism to match")
@@ -207,7 +207,7 @@ struct `Domain Tests` {
     @Test
     func `call carries a noncopyable input through elimination and a prism`() {
         let eliminate = Linear.Call.Eliminator<Int>(
-            consume: { $0.input.value }
+            consume: { $0.input.token.value }
         )
         let eliminated = Linear.Call.consume(.init(value: 41))
 
@@ -218,7 +218,7 @@ struct `Domain Tests` {
         )
         switch consume matched {
         case let .right(application):
-            #expect(application.input.value == 42)
+            #expect(application.input.token.value == 42)
         case .left:
             Issue.record("Expected the consuming call prism to match")
         }
@@ -228,7 +228,7 @@ struct `Domain Tests` {
     @Test
     func `composed call carries a noncopyable child call`() {
         let eliminateChild = Linear.Call.Eliminator<Int>(
-            consume: { $0.input.value }
+            consume: { $0.input.token.value }
         )
         let eliminateRoot = LinearExample.Call.Eliminator<Int>(
             linear: { eliminateChild($0) }
@@ -257,14 +257,14 @@ struct `Domain Tests` {
     func `derived folds lend a payload without consuming the call`() {
         let greeting = Greeting.Call.greet(.init(value: "Blob"))
         var name: Greeting.Name? = nil
-        let visited = Greeting.Call.folds.greet(greeting) { name = $0.input }
+        let visited = Greeting.Call.folds.greet(greeting) { name = $0.input.name }
         #expect(visited)
         #expect(name == .init(value: "Blob"))
 
         let linear = Linear.Call.consume(.init(value: 41))
         var total = 0
-        let first = Linear.Call.folds.consume(linear) { total += $0.input.value }
-        let second = Linear.Call.folds.consume(linear) { total += $0.input.value }
+        let first = Linear.Call.folds.consume(linear) { total += $0.input.token.value }
+        let second = Linear.Call.folds.consume(linear) { total += $0.input.token.value }
         #expect(first)
         #expect(second)
         #expect(total == 82)
@@ -272,7 +272,7 @@ struct `Domain Tests` {
         let composed = LinearExample.Call.linear(.consume(.init(value: 2)))
         var seen = 0
         let composedVisited = LinearExample.Call.folds.linear(composed) { child in
-            _ = Linear.Call.folds.consume(child) { seen = $0.input.value }
+            _ = Linear.Call.folds.consume(child) { seen = $0.input.token.value }
         }
         #expect(composedVisited)
         #expect(seen == 2)
@@ -282,8 +282,8 @@ struct `Domain Tests` {
     func `derived cases pair each prism with its fold`() {
         let call = Greeting.Call.greet(.init(value: "Blob"))
         var name: Greeting.Name? = nil
-        let visited = Greeting.Call.cases.greet.visit(call) { name = $0.input }
-        let embedded = Greeting.Call.cases.greet.embed(.init(.init(value: "Blob")))
+        let visited = Greeting.Call.cases.greet.visit(call) { name = $0.input.name }
+        let embedded = Greeting.Call.cases.greet.embed(.init(.init(.init(value: "Blob"))))
         #expect(visited)
         #expect(name == .init(value: "Blob"))
         #expect(Greeting.Call.cases.greet.matches(embedded))
@@ -307,14 +307,15 @@ struct `Domain Tests` {
     }
 
     @Test
-    func `an owned copyable input keeps its call copyable`() {
+    func `an owned input makes its request and call noncopyable`() {
         let call = Owned.Call.consume(7)
         let eliminate = Owned.Call.Eliminator<Int>(
-            consume: { $0.input }
+            consume: { $0.input.value }
         )
-        requireCopyable(call)
+        requireEscapable(Owned.Consume.Request(7))
 
         #expect(eliminate(call) == 7)
+        requireEscapable(call)
     }
 
     @Test
@@ -322,7 +323,7 @@ struct `Domain Tests` {
         let call = Observation.Call.inspect(42)
         let copy = call
         let eliminate = Observation.Call.Eliminator<Int>(
-            inspect: { $0.input }
+            inspect: { $0.input.value }
         )
 
         #expect(eliminate(copy) == 42)
@@ -331,13 +332,13 @@ struct `Domain Tests` {
 
     @Test
     func `a value type nested in the owner stays qualified`() throws {
-        let application = Numerals.Operations.Digit.Application(.init(value: 7))
-        let _: Numerals.Numeral = application.input
-        let _: Numerals.Operations.Digit.Input.Type = Numerals.Numeral.self
+        let application = Numerals.Operations.Digit.Application(.init(.init(value: 7)))
+        let _: Numerals.Numeral = application.input.digit
+        let _: Numerals.Operations.Digit.Input.Type = Numerals.Digit.Request.self
         let _: Numerals.Operations.Digit.Output.Type = Numerals.Numeral.self
         let _: Numerals.Operations.Digit.Failure.Type = Numerals.Failure.self
         let eliminate = Numerals.Call.Eliminator<Numerals.Numeral>(
-            digit: { $0.input }
+            digit: { $0.input.digit }
         )
 
         #expect(eliminate(.digit(.init(value: 7))) == .init(value: 7))
@@ -345,7 +346,7 @@ struct `Domain Tests` {
 
     @Test
     func `nested domain types remain qualified throughout syntax trees`() {
-        let application = Nested.Operations.Transform.Application([.init()])
+        let application = Nested.Operations.Transform.Application(.init([.init()]))
         let _: Nested.Operations.Transform.Input = application.input
         let _: Nested.Operations.Transform.Output.Type = Swift.Result<
             Nested.Output,
@@ -372,7 +373,7 @@ struct `Domain Tests` {
         )
         let call = Example.Call.greeting(.greet(.init(value: "Blob")))
         let eliminateGreeting = Greeting.Call.Eliminator<Greeting.Name>(
-            greet: { $0.input }
+            greet: { $0.input.name }
         )
         let eliminate = Example.Call.Eliminator<Greeting.Name>(
             greeting: { eliminateGreeting($0) },
@@ -391,7 +392,7 @@ struct `Domain Tests` {
         let client = Example(greeting: greeting, counter: counter)
         let call = Counter.Call.increment(limit: Counter.Limit(value: 2))
         let eliminate = Counter.Call.Eliminator<Counter.Limit>(
-            increment: { $0.input }
+            increment: { $0.input.limit }
         )
         let limit = eliminate(call)
         let message = await client.greeting.greet(.init(value: "Blob"))

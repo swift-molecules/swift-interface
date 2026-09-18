@@ -27,7 +27,7 @@ func accept<Index: Operation.Symbol>(
     result: borrowing Either<Index.Failure, Index.Output>
 ) {}
 
-let operation = Greeting.Operations.Greet.Application(.init())
+let operation = Greeting.Operations.Greet.Application(.init(.init()))
 let result: Either<Counter.Operations.Increment.Failure, Counter.Operations.Increment.Output> =
     .right(.init())
 accept(operation, result: result)

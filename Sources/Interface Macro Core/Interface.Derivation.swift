@@ -43,7 +43,43 @@ extension Interface {
                     \(assignments.joined(separator: "\n"))
                     }
                     """),
+                Self.interpreter(of: signature, operations: operations, access: access),
             ]
+            // The Call lives among the members, not in an extension: an extension
+            // macro attached inside another macro's extension output is typechecked
+            // but never lowered (Swift 6.4), and @Structural's conformances would
+            // lose their descriptors at link time.
+            + Self.call(of: signature, operations: operations, access: signature.product.access)
+        }
+
+        // The interpreter runs a Call against the stored arrows: one arm per
+        // operation, one per child. Its effects are the widest of the arms.
+        private static func interpreter(
+            of signature: Interface.Analysis,
+            operations: [Operation],
+            access: String
+        ) -> DeclSyntax {
+            let arms = operations.map { operation -> String in
+                let arrow = operation.isPrimary
+                    ? "self.`\(operation.key)`"
+                    : "self.\(operation.name).`\(operation.key)`"
+                return """
+                    case let .\(operation.caseName)(application):
+                        _ = \(operation.prefix)\(arrow)(application.consume())
+                    """
+            } + signature.children.map { child in
+                """
+                case let .\(child.name.text)(call):
+                    try await self.\(child.name.text)(call)
+                """
+            }
+            return DeclSyntax(stringLiteral: """
+                \(access)func callAsFunction(_ call: consuming Call) async throws {
+                    switch consume call {
+                \(arms.joined(separator: "\n"))
+                    }
+                }
+                """)
         }
 
         public static func extensions(
@@ -56,8 +92,7 @@ extension Interface {
             let operations = Self.operations(of: signature)
             let primaries = operations.filter(\.isPrimary)
             let groups: [[DeclSyntax]] = [
-                symbols(of: operations, access: spelling),
-                call(of: signature, operations: operations, access: access),
+                symbols(of: operations, owner: owner, access: spelling),
             ]
             + (primaries.isEmpty ? [] : [Self.primary(primaries, owner: owner, access: spelling)])
             + Self.groups(of: operations).map {
@@ -81,13 +116,12 @@ extension Interface {
             let coordinate = operation.coordinate
             let function = operation.function
             let isGeneric = function.declaration.genericParameterClause != nil
+            // A transferring request is noncopyable outright. Making it generic in
+            // its inputs with a conditional Copyable (so that the compiler decides)
+            // crashes Swift 6.4 SILGen on the stored arrow's property descriptor
+            // (`(consuming Product<Token>) -> Int`, RequirementMachineRequests.cpp:499).
             let transfers = operation.transfers
-            let generics = isGeneric
-                ? coordinate.inputs.map { input in
-                    let local = input.parameter.localName.text
-                    return "\(local.prefix(1).uppercased())\(local.dropFirst())"
-                }
-                : coordinate.inputs.map(\.type.trimmedDescription)
+            let generics = isGeneric ? operation.parameters : coordinate.inputs.map(\.type.trimmedDescription)
             let clause = isGeneric && !generics.isEmpty ? "<\(generics.joined(separator: ", "))>" : ""
             let binding = isGeneric && !generics.isEmpty
                 ? "<\(coordinate.inputs.map(\.type.trimmedDescription).joined(separator: ", "))>"
@@ -99,7 +133,7 @@ extension Interface {
                     : "\(access)struct Request: Swift.Hashable, Swift.Sendable {"
             let alias = isGeneric ? "\(access)typealias Request = Product\(binding)" : ""
             let fields = zip(coordinate.inputs, generics).map { input, generic in
-                "\(access)let \(input.parameter.localName.text): \(generic)"
+                "\(access)var \(input.parameter.localName.text): \(generic)"
             }.joined(separator: "\n")
             let parameters = zip(coordinate.inputs, generics).map { input, generic in
                 let declaration = input.parameter.declaration
@@ -242,11 +276,12 @@ extension Interface {
 
         private static func symbols(
             of operations: [Operation],
+            owner: String,
             access: String
         ) -> [DeclSyntax] {
             guard !operations.isEmpty else { return [] }
             let symbols = operations.map {
-                symbol($0, access: access)
+                symbol($0, owner: owner, access: access)
             }.joined(separator: "\n\n")
             return [DeclSyntax(stringLiteral: """
                 \(access)enum Operations {
@@ -257,12 +292,13 @@ extension Interface {
 
         private static func symbol(
             _ operation: Operation,
+            owner: String,
             access: String
         ) -> String {
             let coordinate = operation.coordinate
             return """
                 \(access)enum \(operation.symbolName): Operation::Operation.Symbol {
-                    \(access)typealias Input = \(coordinate.input.trimmedDescription)
+                    \(access)typealias Input = \(operation.requestPath(owner: owner))
                     \(access)typealias Output = \(coordinate.output.trimmedDescription)
                     \(access)typealias Failure = \(coordinate.failure.trimmedDescription)
                     \(access)typealias Application = Operation::Operation.Application<
@@ -279,9 +315,10 @@ extension Interface {
         ) -> [DeclSyntax] {
             let accessSpelling = access.map { "\($0.name.text) " } ?? ""
             // The coproduct is generic in its summands so that the compiler, not a
-            // syntax macro, decides whether a Call is Copyable: @Structural adds
-            // `Copyable` exactly when every summand is. Leaves bind the parameter to
-            // the operation's Application, children to the child's Call. Its
+            // syntax macro, decides whether a Call is Copyable, Sendable, Equatable or
+            // Hashable: @Structural adds each exactly when every summand has it.
+            // Leaves bind the parameter to the operation's Application, children
+            // to the child's Call. Its
             // algebra (prisms, folds, eliminator) is not derived here: the enum
             // carries the atom macros that own those derivations.
             //
@@ -333,7 +370,7 @@ extension Interface {
                     \(accessSpelling)static func \(constructor)\(coordinate.declaration.signature.parameterClause.trimmedDescription) -> Self
                     where \(leaf.parameter) == \(leaf.bound) {
                         let application: \(leaf.bound) = .init(
-                            \(coordinate.inputExpression.trimmedDescription)
+                            \(operation.requestPath(owner: owner))(\(operation.construction))
                         )
                         return Self.\(operation.caseName)(application)
                     }
@@ -414,6 +451,12 @@ extension Interface.Derivation {
             return (effects?.throwsClause != nil ? "try " : "") + (effects?.asyncSpecifier != nil ? "await " : "")
         }
         var transfers: Bool { coordinate.inputs.contains { $0.parameter.transfersOwnership } }
+        var parameters: [String] {
+            coordinate.inputs.map { input in
+                let local = input.parameter.localName.text
+                return "\(local.prefix(1).uppercased())\(local.dropFirst())"
+            }
+        }
         func arrow(owner: String) -> String {
             let request = requestPath(owner: owner)
             return "(\(transfers ? "consuming " : "")\(request))\(effects) -> \(output)"

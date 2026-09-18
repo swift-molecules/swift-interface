@@ -9,5 +9,5 @@ struct Fixture: Fixture.`Protocol` {
 }
 
 let incomplete = Fixture.Call.Eliminator<String>(
-    first: { String($0.input) }
+    first: { String($0.input.value) }
 )

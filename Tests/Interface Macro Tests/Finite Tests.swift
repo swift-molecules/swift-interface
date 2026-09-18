@@ -18,12 +18,12 @@ private func requireEscapable<Value: Escapable>(_: Value) {}
 
 @Test
 func `one declaration derives leaves product and call coproduct`() {
-    let first = Finite.Operations.First.Application(1)
-    let second = Finite.Operations.Second.Application(true)
+    let first = Finite.Operations.First.Application(.init(1))
+    let second = Finite.Operations.Second.Application(.init(true))
     let call = Finite.Call.second(true)
     let eliminate = Finite.Call.Eliminator<String>(
-        first: { "first=\($0.input)" },
-        second: { "second=\($0.input)" }
+        first: { "first=\($0.input.value)" },
+        second: { "second=\($0.input.flag)" }
     )
     let output = eliminate(call)
 
@@ -45,11 +45,11 @@ private func `pure elimination can return an effectful arrow without another ope
         () async -> Either<String, Finite.Failure>
     >(
         first: { operation in
-            { Either<String, Finite.Failure>.left("first=\(operation.input)") }
+            { Either<String, Finite.Failure>.left("first=\(operation.input.value)") }
         },
         second: { operation in
             {
-                operation.input
+                operation.input.flag
                     ? .left("second=true")
                     : .right(.refused)
             }
