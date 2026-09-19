@@ -60,7 +60,7 @@ extension Interface {
             access: String
         ) -> [DeclSyntax] {
             guard let run = signature.run else { return [] }
-            return ["Input", "Output", "Failure", "Application"].map { sort in
+            return [DeclSyntax(stringLiteral: "\(access)typealias Primary = \(run.name)")] + ["Input", "Output", "Failure", "Application"].map { sort in
                 DeclSyntax(stringLiteral: "\(access)typealias \(sort) = \(run.name).\(sort)")
             }
         }

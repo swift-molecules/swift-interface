@@ -12,6 +12,7 @@
 // optional key paths compose case extraction with input access: `\.delete?.id`.
 @attached(member, names: arbitrary)
 @attached(memberAttribute)
+@attached(extension, conformances: InterfacePrimary)
 public macro Interface() = #externalMacro(
     module: "Interface_Macro_Plugin",
     type: "Macro"
