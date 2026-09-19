@@ -32,6 +32,7 @@ extension Interface {
         public var run: Symbol? { symbols.first { $0.isPrimary && $0.variant == nil } }
 
         public static let derived = [
+            "Structure",
             "Model",
             "Product",
             "Client",

@@ -29,8 +29,29 @@ extension Interface {
             return [model.declaration]
                 + Self.witnesses(of: signature, model: model, owner: owner, access: access)
                 + Self.primary(of: signature, access: access)
+                + [Self.structure(of: signature, access: access)]
                 + [Self.interpreter(of: signature, access: access)]
                 + Self.call(of: signature, access: access)
+        }
+
+        // A child coordinate is a typed projection of the existing owner, not another
+        // model of its operations. Interpreters can select it without parsing imported syntax.
+        private static func structure(of signature: Interface.Analysis, access: String) -> DeclSyntax {
+            let owner = signature.owner.trimmedDescription
+            let children = signature.children.map { child in
+                """
+                \(access)enum \(child.name.trimmedDescription): Interface_Macro.InterfaceMember {
+                    \(access)typealias Owner = \(owner)
+                    \(access)typealias Value = \(child.domain.trimmedDescription)
+                    \(access)static var path: Swift.KeyPath<Owner, Value> { \\Owner.\(child.name.trimmedDescription) }
+                }
+                """
+            }.joined(separator: "\n")
+            return DeclSyntax(stringLiteral: """
+                \(access)enum Structure {
+                \(children)
+                }
+                """)
         }
 
         // The primary operation is the interface itself: `Reminders.Update.Input` is `Reminders.Update.Run.Input`.
