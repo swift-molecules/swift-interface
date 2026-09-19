@@ -110,6 +110,8 @@ private struct `Compiler Tests` {
         process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
         process.arguments = [
             "swiftc",
+            "-enable-upcoming-feature", "MemberImportVisibility",
+            "-warnings-as-errors",
             "-typecheck",
             "-swift-version", "6",
             "-enable-experimental-feature", "Lifetimes",
@@ -121,6 +123,7 @@ private struct `Compiler Tests` {
         ] + [
             "Interface Macro Plugin#Interface_Macro_Plugin",
             "Product Macro Plugin#Product_Macro_Plugin",
+            "Structural Macro Plugin#Structural_Macro_Plugin",
             "Operation Macro Plugin#Operation_Macro_Plugin",
             "Prism Macro Plugin#Prism_Macro_Plugin",
             "Fold Macro Plugin#Fold_Macro_Plugin",

@@ -3,7 +3,7 @@ import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
-public struct Macro: MemberMacro, ExtensionMacro {
+public struct Macro: MemberMacro, MemberAttributeMacro {
     public static func expansion(
         of _: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
@@ -26,20 +26,16 @@ public struct Macro: MemberMacro, ExtensionMacro {
     }
 
     public static func expansion(
-        of _: AttributeSyntax,
+        of node: AttributeSyntax,
         attachedTo declaration: some DeclGroupSyntax,
-        providingExtensionsOf type: some TypeSyntaxProtocol,
-        conformingTo _: [TypeSyntax],
-        in _: some MacroExpansionContext
-    ) throws -> [ExtensionDeclSyntax] {
-        guard let owner = declaration.as(StructDeclSyntax.self), let semantic = Self.semantic(of: owner) else {
-            return []
+        providingAttributesFor member: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [AttributeSyntax] {
+        guard let semantic = member.as(ProtocolDeclSyntax.self), Self.isSemantic(semantic) else { return [] }
+        let exists = semantic.attributes.contains {
+            $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "Operations"
         }
-        let extended = TypeSyntax(type.trimmed)
-        return Interface.Derivation.extensions(
-            of: try Self.analysis(of: semantic, owner: extended),
-            extending: extended
-        )
+        return exists ? [] : [AttributeSyntax(attributeName: IdentifierTypeSyntax(name: .identifier("Operations")))]
     }
 
     private static func conformsToSemantic(_ owner: StructDeclSyntax) -> Bool {

@@ -7,7 +7,6 @@ struct Finite: Finite.`Protocol` {
         case refused
     }
 
-    @Operations
     protocol `Protocol` {
         func first(_ value: Int) -> String
         func second(_ flag: Bool) throws(Failure) -> Int
@@ -18,7 +17,7 @@ private func requireCopyable<Value: Copyable>(_: Value) {}
 private func requireEscapable<Value: Escapable>(_: Value) {}
 
 @Test
-func `one declaration derives leaves product and call coproduct`() {
+func `one declaration derives leaves product and call coproduct`() async throws {
     let first = Finite.First.Application(.init(1))
     let second = Finite.Second.Application(.init(true))
     let call = Finite.Call.second(true)
@@ -26,7 +25,7 @@ func `one declaration derives leaves product and call coproduct`() {
         first: { "first=\($0.input.value)" },
         second: { "second=\($0.input.flag)" }
     )
-    let output = eliminate(call)
+    let output = try await eliminate(call)
 
     let _: Finite.First.Input = first.input
     let _: Finite.First.Output = "one"
@@ -40,7 +39,7 @@ func `one declaration derives leaves product and call coproduct`() {
 }
 
 @Test
-private func `pure elimination can return an effectful arrow without another operation enum`() async {
+private func `pure elimination can return an effectful arrow without another operation enum`() async throws {
     let call = Finite.Call.second(true)
     let eliminator = Finite.Call.Eliminator<
         () async -> Either<String, Finite.Failure>
@@ -56,7 +55,7 @@ private func `pure elimination can return an effectful arrow without another ope
             }
         }
     )
-    let effect = eliminator(call)
+    let effect = try await eliminator(call)
 
     switch await effect() {
     case let .left(output): #expect(output == "second=true")

@@ -1,6 +1,7 @@
+import Interface_Syntax
 import Interface_Macro_Core
-import Operation_Macro_Core
-import Product_Macro_Core
+import Operation_Syntax
+import Product_Syntax
 import SwiftParser
 import SwiftSyntax
 import Testing
@@ -42,7 +43,7 @@ func `an interface reads its operations as symbols and its getters as children`(
 }
 
 @Test
-func `an interface requires @Operations on its protocol`() throws {
+func `interface analysis is independent of installed macro attributes`() throws {
     let source = Parser.parse(source: """
         protocol `Protocol` {
             func greet(_ name: String) -> String
@@ -56,5 +57,5 @@ func `an interface requires @Operations on its protocol`() throws {
         owner: TypeSyntax(IdentifierTypeSyntax(name: .identifier("Domain")))
     )
 
-    #expect(signature.diagnostics.contains { $0.contains("@Operations") })
+    #expect(signature.diagnostics.isEmpty)
 }

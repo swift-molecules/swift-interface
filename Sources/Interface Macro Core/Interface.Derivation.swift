@@ -1,11 +1,11 @@
-public import Operation_Macro_Core
-public import Product_Macro_Core
+import Operation_Syntax
+public import Product_Syntax
 public import SwiftSyntax
 import SwiftSyntaxBuilder
 
 // @Interface composes. The protocol's @Operations declares one symbol per operation (`Owner.Greet`, with its
 // Input/Output/Failure); @Product, attached to the generated model protocol, derives the stored arrows and
-// their initializer; @Structural/@Copyable, @Prisms/@Folds/@Cases and @Eliminator give the Call its
+// their initializer; structural capability macros, @Prisms/@Folds/@Cases and @Eliminator give the Call its
 // capabilities and algebra. What is derived here is what no atom models: the model's requirements, the
 // label-preserving witnesses, the Call's constructors, and the interpreter.
 //
@@ -31,16 +31,6 @@ extension Interface {
                 + Self.primary(of: signature, access: access)
                 + [Self.interpreter(of: signature, access: access)]
                 + Self.call(of: signature, access: access)
-        }
-
-        // Nothing is added to the owner by extension: the owner's inheritance clause names its own nested
-        // protocol, and an extension macro declaring conformances there is a circular reference. Everything
-        // generic about an interface goes through its symbols (`Operable`) and its Call (`Coproduct`).
-        public static func extensions(
-            of signature: Interface.Analysis,
-            extending type: TypeSyntax
-        ) -> [ExtensionDeclSyntax] {
-            []
         }
 
         // The primary operation is the interface itself: `Reminders.Update.Input` is `Reminders.Update.Run.Input`.
@@ -151,7 +141,7 @@ extension Interface {
         }
 
         // The Call is generic in its leaves so that the compiler, not this macro, decides its capabilities:
-        // @Structural and @Copyable add each exactly when every leaf has it. A leaf is anything `Applying` the
+        // The structural capability macros add each exactly when every leaf has it. A leaf is anything `Applying` the
         // operation's Input (its Application, in practice); a child's Call is bound concretely, so that the
         // child's builders can be static members (`.lists.delete(id)`) — a child whose inputs are not values
         // therefore cannot be composed into a Call that is one. Its algebra is attached, not derived here:
@@ -171,41 +161,42 @@ extension Interface {
             let leaves = signature.symbols.map { symbol in
                 (symbol: symbol, parameter: "\(symbol.name)Application", bound: "\(owner).\(symbol.name).Application")
             }
-            // With no leaves (a root of children only) the Call is concrete and a value outright.
-            let generic = leaves.isEmpty
-                ? ""
-                : "<\(leaves.map { "\($0.parameter): ~Copyable" }.joined(separator: ", "))>"
-            let conformances = leaves.isEmpty
+            let childParameters = signature.children.map { child in
+                (child: child, parameter: child.name.text.prefix(1).uppercased() + child.name.text.dropFirst() + "Call")
+            }
+            let parameters = leaves.map(\.parameter) + childParameters.map(\.parameter)
+            let generic = parameters.isEmpty ? "" : "<" + parameters.map { "\($0): ~Copyable" }.joined(separator: ", ") + ">"
+            let conformances = parameters.isEmpty
                 ? "Swift.Hashable, Swift.Sendable, Operation::Operation.Coproduct, Operation::Operation.Sending"
                 : "~Copyable, Operation::Operation.Coproduct, Operation::Operation.Sending"
-            let requirements = leaves.isEmpty
-                ? ""
-                : "\nwhere " + leaves.map { "\($0.parameter): Operation::Operation.Applying<\($0.symbol.inputPath(owner: owner))>" }.joined(separator: ", ")
-            func applying(_ leaf: (symbol: Interface.Analysis.Symbol, parameter: String, bound: String)) -> String { "" }
-            let capabilities = leaves.isEmpty ? "" : "@Structural\n@Copyable\n"
+            let constraints = leaves.map { "\($0.parameter): Operation::Operation.Applying<\($0.symbol.inputPath(owner: owner))>" }
+                + childParameters.flatMap { ["\($0.parameter): Operation::Operation.Coproduct", "\($0.parameter).Owner == \($0.child.domain.trimmedDescription)"] }
+            let requirements = constraints.isEmpty ? "" : "\nwhere " + constraints.joined(separator: ", ")
+            let capabilities = parameters.isEmpty ? "" : "@StructuralEquatable\n@StructuralHashable\n@StructuralSendable\n@Copyable\n"
             let cases = leaves.map { "case \($0.symbol.caseName)(\($0.parameter))" }
-                + signature.children.map { "case \($0.name.text)(\($0.call.trimmedDescription))" }
+                + childParameters.map { "case \($0.child.name.text)(\($0.parameter))" }
             let constructors = leaves.map { leaf in
                 let symbol = leaf.symbol
                 return """
-                \(access)static func \(symbol.caseName)\(symbol.signature.declaration.signature.parameterClause.trimmedDescription) -> Self\(applying(leaf)) {
+                \(access)static func \(symbol.caseName)\(symbol.signature.declaration.signature.parameterClause.trimmedDescription) -> Self {
                     Self.\(symbol.caseName)(\(leaf.parameter)(\(symbol.inputPath(owner: owner))(\(symbol.construction))))
                 }
 
-                \(access)static func \(symbol.caseName)(_ input: \(symbol.inputParameter(owner: owner))) -> Self\(applying(leaf)) {
+                \(access)static func \(symbol.caseName)(_ input: \(symbol.inputParameter(owner: owner))) -> Self {
                     Self.\(symbol.caseName)(\(leaf.parameter)(input))
                 }
                 """
             }
-            let builders = signature.children.map { child in
-                """
-                \(access)static var \(child.name.text): \(child.call.trimmedDescription).Embedding<Self> {
+            let builders = childParameters.map { entry in
+                let child = entry.child
+                return """
+                \(access)static func \(child.name.text)() -> \(child.call.trimmedDescription).Embedding<Self> where \(entry.parameter) == \(child.call.trimmedDescription) {
                     .init { Self.\(child.name.text)($0) }
                 }
                 """
             }
             // A one-operation Call reads as that operation's input: `request.id`.
-            let forwarding = leaves.count == 1 && signature.children.isEmpty
+            let forwarding = leaves.count == 1 && !leaves[0].symbol.transfers && signature.children.isEmpty
                 ? """
                 \(access)subscript<Member>(dynamicMember keyPath: Swift.KeyPath<\(leaves[0].symbol.inputPath(owner: owner)), Member>) -> Member
                 where \(leaves[0].parameter): Copyable {
@@ -218,13 +209,16 @@ extension Interface {
                 : ""
             let arms = leaves.map { leaf -> String in
                 """
-                case let .\(leaf.symbol.caseName)(application):
+                \(leaf.symbol.caseName): { (application: consuming \(leaf.parameter)) async throws -> Void in
                     _ = \(leaf.symbol.prefix)owner.product.\(leaf.symbol.caseName)(application.consume())
+                }
                 """
-            } + signature.children.map { child in
-                """
-                case let .\(child.name.text)(call):
-                    try await owner.\(child.name.text)(call)
+            } + childParameters.map { entry in
+                let child = entry.child
+                return """
+                \(child.name.text): { (call: consuming \(entry.parameter)) async throws -> Void in
+                    try await \(entry.parameter).run(owner.\(child.name.text), call)
+                }
                 """
             }
             // A primary is the embedding called; a named operation is a callable member (a property, so that a
@@ -253,9 +247,10 @@ extension Interface {
                     \(calls.joined(separator: "\n"))
                     }
                     """]
-            } + signature.children.map { child in
-                """
-                \(access)var \(child.name.text): \(child.call.trimmedDescription).Embedding<Root> {
+            } + childParameters.map { entry in
+                let child = entry.child
+                return """
+                \(access)func \(child.name.text)() -> \(child.call.trimmedDescription).Embedding<Root> where \(entry.parameter) == \(child.call.trimmedDescription) {
                     .init { embed(.\(child.name.text)($0)) }
                 }
                 """
@@ -265,7 +260,7 @@ extension Interface {
                     \(capabilities)@Prisms
                     @Folds
                     @Cases
-                    @Eliminator
+                    @Eliminator(consuming: true, asynchronous: true, throwing: true)
                     \(forwarding.isEmpty ? "" : "@dynamicMemberLookup")
                     \(access)enum Coproduct\(generic): \(conformances)\(requirements) {
                     \(cases.joined(separator: "\n"))
@@ -294,15 +289,15 @@ extension Interface {
 
                         // Effects policy: running a Call is always `async throws`, the widest of its arms.
                         \(access)static func run(_ owner: \(owner), _ call: consuming Self) async throws {
-                            switch consume call {
-                    \(arms.joined(separator: "\n"))
-                            }
+                            try await Eliminator<Void>(
+                    \(arms.joined(separator: ",\n"))
+                            )(call)
                         }
                     }
                     """),
-                DeclSyntax(stringLiteral: leaves.isEmpty
+                DeclSyntax(stringLiteral: parameters.isEmpty
                     ? "\(access)typealias Call = Coproduct"
-                    : "\(access)typealias Call = Coproduct<\(leaves.map(\.bound).joined(separator: ", "))>"),
+                    : "\(access)typealias Call = Coproduct<\((leaves.map(\.bound) + childParameters.map { $0.child.call.trimmedDescription }).joined(separator: ", "))>"),
             ]
         }
     }

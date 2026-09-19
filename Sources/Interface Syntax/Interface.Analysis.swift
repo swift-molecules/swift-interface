@@ -1,5 +1,5 @@
-public import Operation_Macro_Core
-public import Product_Macro_Core
+public import Operation_Syntax
+public import Product_Syntax
 public import SwiftSyntax
 
 extension Interface {
@@ -35,6 +35,7 @@ extension Interface {
             "Model",
             "Product",
             "Client",
+            "ClientDefinition",
             "Coproduct",
             "Call",
             "Cases",
@@ -57,12 +58,6 @@ extension Interface {
             if declaration.inheritanceClause != nil {
                 reasons.append("inherited protocols are not a closed finite signature")
             }
-            if !declaration.attributes.contains(where: { attribute in
-                attribute.as(AttributeSyntax.self)?.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "Operations"
-            }) {
-                reasons.append("the interface's protocol must carry @Operations, which declares the symbols the interface composes")
-            }
-
             var domains: [String: TypeSyntax] = [:]
             for coordinate in product.associatedTypeCoordinates {
                 guard let domain = Self.domain(of: coordinate) else {

@@ -172,7 +172,7 @@ struct `Domain Tests` {
     )
 
     @Test
-    func `operation application carries its input and dependent result family`() {
+    func `operation application carries its input and dependent result family`() async throws {
         let operation = Greeting.Greet.Application(
             .init(Greeting.Name(value: "Blob"))
         )
@@ -191,18 +191,18 @@ struct `Domain Tests` {
     }
 
     @Test
-    func `call directly stores its operation leaf and eliminates exhaustively`() {
+    func `call directly stores its operation leaf and eliminates exhaustively`() async throws {
         let call = Greeting.Call.greet(.init(value: "Blob"))
         let eliminate = Greeting.Call.Eliminator<Greeting.Name>(
             greet: { $0.input.name }
         )
-        let name = eliminate(call)
+        let name = try await eliminate(call)
 
         #expect(name == .init(value: "Blob"))
     }
 
     @Test
-    func `call receives canonical coproduct prisms`() {
+    func `call receives canonical coproduct prisms`() async throws {
         let call = Greeting.Call.greet(.init(value: "Blob"))
 
         switch Greeting.Call.prisms.greet.match(call) {
@@ -215,13 +215,13 @@ struct `Domain Tests` {
     }
 
     @Test
-    func `call carries a noncopyable input through elimination and a prism`() {
+    func `call carries a noncopyable input through elimination and a prism`() async throws {
         let eliminate = Linear.Call.Eliminator<Int>(
             consume: { $0.input.token.value }
         )
         let eliminated = Linear.Call.consume(.init(value: 41))
 
-        #expect(eliminate(eliminated) == 41)
+        #expect(try await eliminate(eliminated) == 41)
 
         let matched = Linear.Call.prisms.consume.match(
             .consume(.init(value: 42))
@@ -236,25 +236,25 @@ struct `Domain Tests` {
     }
 
     @Test
-    func `composed call carries a noncopyable child call`() {
+    func `composed call carries a noncopyable child call`() async throws {
         let eliminateChild = Linear.Call.Eliminator<Int>(
             consume: { $0.input.token.value }
         )
         let eliminateRoot = LinearExample.Call.Eliminator<Int>(
-            linear: { eliminateChild($0) }
+            linear: { try await eliminateChild($0) }
         )
         let call = LinearExample.Call.linear(
             .consume(.init(value: 44))
         )
 
-        #expect(eliminateRoot(call) == 44)
+        #expect(try await eliminateRoot(call) == 44)
 
         let matched = LinearExample.Call.prisms.linear.match(
             .linear(.consume(.init(value: 45)))
         )
         switch consume matched {
         case let .right(child):
-            #expect(eliminateChild(child) == 45)
+            #expect(try await eliminateChild(child) == 45)
         case .left:
             Issue.record("Expected the composed call prism to match")
         }
@@ -264,7 +264,7 @@ struct `Domain Tests` {
     }
 
     @Test
-    func `derived folds lend a payload without consuming the call`() {
+    func `derived folds lend a payload without consuming the call`() async throws {
         let greeting = Greeting.Call.greet(.init(value: "Blob"))
         var name: Greeting.Name? = nil
         let visited = Greeting.Call.folds.greet(greeting) { name = $0.input.name }
@@ -289,7 +289,7 @@ struct `Domain Tests` {
     }
 
     @Test
-    func `derived cases pair each prism with its fold`() {
+    func `derived cases pair each prism with its fold`() async throws {
         let call = Greeting.Call.greet(.init(value: "Blob"))
         var name: Greeting.Name? = nil
         let visited = Greeting.Call.cases.greet.visit(call) { name = $0.input.name }
@@ -304,7 +304,7 @@ struct `Domain Tests` {
     }
 
     @Test
-    func `call carries a noncopyable tuple input`() {
+    func `call carries a noncopyable tuple input`() async throws {
         let eliminate = LinearPair.Call.Eliminator<Int>(
             combine: { _ in 42 }
         )
@@ -313,35 +313,35 @@ struct `Domain Tests` {
             with: LinearPair.Token(value: 22)
         )
 
-        #expect(eliminate(call) == 42)
+        #expect(try await eliminate(call) == 42)
     }
 
     @Test
-    func `an owned input makes its request and call noncopyable`() {
+    func `an owned input makes its request and call noncopyable`() async throws {
         let call = Owned.Call.consume(7)
         let eliminate = Owned.Call.Eliminator<Int>(
             consume: { $0.input.value }
         )
         requireEscapable(Owned.Consume.Input(7))
 
-        #expect(eliminate(call) == 7)
-        requireEscapable(call)
+        requireEscapable(Owned.Call.consume(7))
+        #expect(try await eliminate(call) == 7)
     }
 
     @Test
-    func `call snapshots a borrowed copyable input`() {
+    func `call snapshots a borrowed copyable input`() async throws {
         let call = Observation.Call.inspect(42)
         let copy = call
         let eliminate = Observation.Call.Eliminator<Int>(
             inspect: { $0.input.value }
         )
 
-        #expect(eliminate(copy) == 42)
-        #expect(eliminate(call) == 42)
+        #expect(try await eliminate(copy) == 42)
+        #expect(try await eliminate(call) == 42)
     }
 
     @Test
-    func `a value type nested in the owner stays qualified`() throws {
+    func `a value type nested in the owner stays qualified`() async throws {
         let application = Numerals.Digit.Application(.init(.init(value: 7)))
         let _: Numerals.Numeral = application.input.digit
         let _: Numerals.Digit.Input.Type = Numerals.Digit.Input.self
@@ -351,11 +351,11 @@ struct `Domain Tests` {
             digit: { $0.input.digit }
         )
 
-        #expect(eliminate(.digit(.init(value: 7))) == .init(value: 7))
+        #expect(try await eliminate(.digit(.init(value: 7))) == .init(value: 7))
     }
 
     @Test
-    func `nested domain types remain qualified throughout syntax trees`() {
+    func `nested domain types remain qualified throughout syntax trees`() async throws {
         let application = Nested.Transform.Application(.init([.init()]))
         let _: Nested.Transform.Input = application.input
         let _: Nested.Transform.Output.Type = Swift.Result<
@@ -366,7 +366,7 @@ struct `Domain Tests` {
     }
 
     @Test
-    func `the interface struct is the semantic client interpretation`() async {
+    func `the interface struct is the semantic client interpretation`() async throws {
         let message = await use(greeting, name: .init(value: "Blob"))
         let _: any Greeting.`Protocol` = greeting
 
@@ -386,10 +386,10 @@ struct `Domain Tests` {
             greet: { $0.input.name }
         )
         let eliminate = Example.Call.Eliminator<Greeting.Name>(
-            greeting: { eliminateGreeting($0) },
+            greeting: { try await eliminateGreeting($0) },
             counter: { _ in Greeting.Name(value: "counter") }
         )
-        let name = eliminate(call)
+        let name = try await eliminate(call)
         requireCopyable(call)
 
         #expect(values.0 == .init(value: "Hello, Blob!"))
@@ -404,7 +404,7 @@ struct `Domain Tests` {
         let eliminate = Counter.Call.Eliminator<Counter.Limit>(
             increment: { $0.input.limit }
         )
-        let limit = eliminate(call)
+        let limit = try await eliminate(call)
         let message = await client.greeting.greet(.init(value: "Blob"))
         let value = try await client.counter.increment(limit: .init(value: 2))
 

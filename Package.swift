@@ -13,8 +13,8 @@ let package = Package(
         .visionOS(.v27),
     ],
     products: [
+        .library(name: "Interface Syntax", targets: ["Interface Syntax"]),
         .library(name: "Interface Macro", targets: ["Interface Macro"]),
-        .library(name: "Interface Macro Core", targets: ["Interface Macro Core"]),
     ],
     dependencies: [
         .package(url: "https://github.com/swift-atoms/swift-optic.git", branch: "main"),
@@ -24,11 +24,17 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-syntax.git", "603.0.2"..<"604.0.0"),
     ],
     targets: [
+        .target(name: "Interface Syntax", dependencies: [
+            .product(name: "Operation Syntax", package: "swift-operation"),
+            .product(name: "Product Syntax", package: "swift-product"),
+            .product(name: "SwiftSyntax", package: "swift-syntax"),
+        ]),
         .target(
             name: "Interface Macro Core",
             dependencies: [
-                .product(name: "Operation Macro Core", package: "swift-operation"),
-                .product(name: "Product Macro Core", package: "swift-product"),
+                "Interface Syntax",
+                .product(name: "Operation Syntax", package: "swift-operation"),
+                .product(name: "Product Syntax", package: "swift-product"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),
             ]
@@ -61,9 +67,9 @@ let package = Package(
             dependencies: [
                 "Interface Macro",
                 "Interface Macro Core",
-                .product(name: "Operation Macro Core", package: "swift-operation"),
+                .product(name: "Operation Syntax", package: "swift-operation"),
                 .product(name: "Product Macro", package: "swift-product"),
-                .product(name: "Product Macro Core", package: "swift-product"),
+                .product(name: "Product Syntax", package: "swift-product"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ],
             resources: [.copy("Fixtures")]
@@ -86,4 +92,9 @@ for target in package.targets where ![.system, .binary, .plugin, .macro].contain
     let package: [SwiftSetting] = []
 
     target.swiftSettings = (target.swiftSettings ?? []) + ecosystem + package
+}
+
+// Consumer compilation must reject visibility regressions, even when other packages suppress warnings.
+for target in package.targets where target.type == .test || target.name.hasSuffix("Consumer Fixtures") {
+    target.swiftSettings = (target.swiftSettings ?? []) + [.treatAllWarnings(as: .error)]
 }
