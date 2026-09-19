@@ -83,7 +83,7 @@ extension Interface {
             // The primary operation has no name at its call site (`reminders.read()`), so its closure has none in
             // the owner's initializer either: `run` is storage, never spelled by the reader.
             let parameters = model.analysis.functionCoordinates.map { function in
-                "\(function.storage == "run" ? "_ run" : function.storage): @escaping \(function.closureType.trimmedDescription)"
+                "\(function.storage == signature.run?.caseName ? "_ run" : function.storage): @escaping \(function.closureType.trimmedDescription)"
             } + model.analysis.propertyCoordinates.map { property in
                 "\(property.name.text): \(property.type.trimmedDescription)"
             }
@@ -142,9 +142,8 @@ extension Interface {
 
         // The Call is generic in its leaves so that the compiler, not this macro, decides its capabilities:
         // The structural capability macros add each exactly when every leaf has it. A leaf is anything `Applying` the
-        // operation's Input (its Application, in practice); a child's Call is bound concretely, so that the
-        // child's builders can be static members (`.lists.delete(id)`) — a child whose inputs are not values
-        // therefore cannot be composed into a Call that is one. Its algebra is attached, not derived here:
+        // operation's Input (its Application, in practice). Child calls remain generic too; constrained
+        // child inclusion maps expose property navigation on their canonical specialization. Its algebra is attached, not derived here:
         // @Prisms, @Folds and @Cases from swift-optic, @Eliminator from swift-coproduct.
         //
         // `Embedding<Root>` names the operations again as functions building a Root from a Call: on the Call
@@ -187,14 +186,19 @@ extension Interface {
                 }
                 """
             }
-            let builders = childParameters.map { entry in
-                let child = entry.child
-                return """
-                \(access)static func \(child.name.text)() -> \(child.call.trimmedDescription).Embedding<Self> where \(entry.parameter) == \(child.call.trimmedDescription) {
-                    .init { Self.\(child.name.text)($0) }
-                }
-                """
+            var embeddingResult = "_Result"
+            while owner.split(separator: ".").contains(Substring(embeddingResult)) || parameters.contains(embeddingResult) {
+                embeddingResult = "_" + embeddingResult
             }
+            func childEmbeddings(embedding: Bool) -> String {
+                guard !childParameters.isEmpty else { return "" }
+                let preserving = (parameters + (embedding ? [embeddingResult] : [])).joined(separator: ",")
+                let bindings = childParameters.map { entry in
+                    "(\(String(reflecting: entry.child.name.text)), \(String(reflecting: entry.parameter)), \(String(reflecting: entry.child.call.trimmedDescription)))"
+                }.joined(separator: ", ")
+                return "@_InterfaceChildEmbeddings(preserving: \(String(reflecting: preserving)), \(bindings))"
+            }
+            let source = "Coproduct" + (parameters.isEmpty ? "" : "<" + parameters.joined(separator: ", ") + ">")
             // A one-operation Call reads as that operation's input: `request.id`.
             let forwarding = leaves.count == 1 && !leaves[0].symbol.transfers && signature.children.isEmpty
                 ? """
@@ -210,7 +214,7 @@ extension Interface {
             let arms = leaves.map { leaf -> String in
                 """
                 \(leaf.symbol.caseName): { (application: consuming \(leaf.parameter)) async throws -> Void in
-                    _ = \(leaf.symbol.prefix)owner.product.\(leaf.symbol.caseName)(application.consume())
+                    \(leaf.symbol.signature.returnsVoid ? "" : "_ = ")\(leaf.symbol.prefix)owner.product.\(leaf.symbol.caseName)(application.consume())
                 }
                 """
             } + childParameters.map { entry in
@@ -227,12 +231,12 @@ extension Interface {
                 let symbol = leaf.symbol
                 let calls = [
                     """
-                    \(access)func callAsFunction\(symbol.signature.declaration.signature.parameterClause.trimmedDescription) -> Root {
+                    \(access)func callAsFunction\(symbol.signature.declaration.signature.parameterClause.trimmedDescription) -> \(embeddingResult) {
                         embed(.\(symbol.caseName)(\(symbol.inputPath(owner: owner))(\(symbol.construction))))
                     }
                     """,
                     """
-                    \(access)func callAsFunction(_ input: \(symbol.inputParameter(owner: owner))) -> Root {
+                    \(access)func callAsFunction(_ input: \(symbol.inputParameter(owner: owner))) -> \(embeddingResult) {
                         embed(.\(symbol.caseName)(input))
                     }
                     """,
@@ -242,21 +246,24 @@ extension Interface {
                     \(access)var \(symbol.caseName): \(symbol.name) { .init(embed: embed) }
 
                     \(access)struct \(symbol.name) {
-                        \(access)let embed: (consuming Coproduct) -> Root
+                        \(access)let embed: (consuming \(source)) -> \(embeddingResult)
 
                     \(calls.joined(separator: "\n"))
                     }
                     """]
-            } + childParameters.map { entry in
-                let child = entry.child
-                return """
-                \(access)func \(child.name.text)() -> \(child.call.trimmedDescription).Embedding<Root> where \(entry.parameter) == \(child.call.trimmedDescription) {
-                    .init { embed(.\(child.name.text)($0)) }
-                }
-                """
             }
+            let embedding = DeclSyntax(stringLiteral: """
+                \(childEmbeddings(embedding: true))
+                \(access)struct Embedding<\(embeddingResult): ~Copyable\(parameters.isEmpty ? "" : ", " + parameters.map { "\($0): ~Copyable" }.joined(separator: ", "))>\(requirements) {
+                    \(access)let embed: (consuming \(source)) -> \(embeddingResult)
+                    \(access)init(_ embed: @escaping (consuming \(source)) -> \(embeddingResult)) { self.embed = embed }
+                    \(embedded.joined(separator: "\n"))
+                }
+                """)
             return [
+                embedding,
                 DeclSyntax(stringLiteral: """
+                    \(childEmbeddings(embedding: false))
                     \(capabilities)@Prisms
                     @Folds
                     @Cases
@@ -267,24 +274,10 @@ extension Interface {
 
                     \(constructors.joined(separator: "\n"))
 
-                    \(builders.joined(separator: "\n"))
-
                     \(forwarding)
 
-                        \(access)struct Embedding<Root: ~Copyable> {
-                            \(access)let embed: (consuming Coproduct) -> Root
-
-                            \(access)init(_ embed: @escaping (consuming Coproduct) -> Root) {
-                                self.embed = embed
-                            }
-
-                    \(embedded.joined(separator: "\n"))
-                        }
-
-                        \(access)static func sending(_ send: @escaping (consuming Self) -> Void) -> Embedding<Void> {
-                            .init(send)
-                        }
-
+                        \(access)typealias Embedding<\(embeddingResult): ~Copyable> = \(owner).Embedding<\(embeddingResult)\(parameters.isEmpty ? "" : ", " + parameters.joined(separator: ", "))>
+                        \(access)static func sending(_ send: @escaping (consuming Self) -> Void) -> Embedding<Void> { .init(send) }
                         \(access)typealias Owner = \(owner)
 
                         // Effects policy: running a Call is always `async throws`, the widest of its arms.

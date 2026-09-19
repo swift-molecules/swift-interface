@@ -37,6 +37,7 @@ extension Interface {
             "Client",
             "ClientDefinition",
             "Coproduct",
+            "Embedding",
             "Call",
             "Cases",
             "Prisms",
