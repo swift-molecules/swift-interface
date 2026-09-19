@@ -60,3 +60,34 @@ private enum NamedDomain {
     try await NamedDomain.Root({ value = $0.value })(calls[0])
     #expect(value == 7)
 }
+
+
+@Test func deletionProjectionComposesCaseExtractionWithInputForwarding() {
+    let deleting: (SendingDomain.Call) -> Int? = \.delete?.id
+    let path: KeyPath<SendingDomain.Call, Int?> = \.delete?.id
+    let deletion = SendingDomain.Call.delete(2)
+    #expect(deleting(deletion) == 2)
+    #expect(deletion[keyPath: path] == 2)
+    #expect(deleting(.update(3)) == nil)
+    #expect(deleting(.update.complete(3, true)) == nil)
+}
+
+@Test func nestedCaseProjectionPreservesOptionalChaining() {
+    let completed: (SendingDomain.Call) -> Bool? = \.update?.complete?.completed
+    #expect(completed(.update.complete(1, true)) == true)
+    #expect(completed(.update.complete(1, false)) == false)
+    #expect(completed(.update(1)) == nil)
+    #expect(completed(.delete(1)) == nil)
+}
+
+@Interface private struct ProjectionCollision: ProjectionCollision.Interface {
+    protocol Interface { func callAsFunction(_ run: Int) }
+}
+
+@Test func inputForwardingAndCaseExtractionCanShareAName() {
+    let call = ProjectionCollision.Call.run(7)
+    let input: KeyPath<ProjectionCollision.Call, Int> = \.run
+    let application: KeyPath<ProjectionCollision.Call, ProjectionCollision.Run.Application?> = \.run
+    #expect(call[keyPath: input] == 7)
+    #expect(call[keyPath: application]?.input.run == 7)
+}

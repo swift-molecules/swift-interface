@@ -268,7 +268,7 @@ extension Interface {
                     @Folds
                     @Cases
                     @Eliminator(consuming: true, asynchronous: true, throwing: true)
-                    \(forwarding.isEmpty ? "" : "@dynamicMemberLookup")
+                    @dynamicMemberLookup
                     \(access)enum Coproduct\(generic): \(conformances)\(requirements) {
                     \(cases.joined(separator: "\n"))
 
