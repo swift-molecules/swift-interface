@@ -11,15 +11,17 @@ public struct Macro: MemberMacro, MemberAttributeMacro, ExtensionMacro {
         conformingTo protocols: [TypeSyntax],
         in context: some MacroExpansionContext
     ) throws -> [ExtensionDeclSyntax] {
-        guard let owner = declaration.as(StructDeclSyntax.self),
-            let semantic = Self.semantic(of: owner),
-            try Self.analysis(of: semantic, owner: TypeSyntax(type)).run != nil
-        else { return [] }
-        return [try ExtensionDeclSyntax("extension \(type): Interface_Macro.InterfacePrimary {}")]
+        guard let owner = declaration.as(StructDeclSyntax.self), let semantic = Self.semantic(of: owner) else { return [] }
+        let signature = try Self.analysis(of: semantic, owner: TypeSyntax(type))
+        var conformances: [String] = ["Interface_Macro.Constructible"]
+        if signature.run != nil { conformances.append("Interface_Macro.Interface.Primary") }
+        if isSendable(node) { conformances.append("Swift.Sendable") }
+        guard !conformances.isEmpty else { return [] }
+        return [try ExtensionDeclSyntax("extension \(type): \(raw: conformances.joined(separator: ", ")) {}")]
     }
 
     public static func expansion(
-        of _: AttributeSyntax,
+        of node: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
         conformingTo _: [TypeSyntax],
         in context: some MacroExpansionContext
@@ -43,7 +45,7 @@ public struct Macro: MemberMacro, MemberAttributeMacro, ExtensionMacro {
             else { return nil }
             return member.baseType.trimmed
         }.first ?? TypeSyntax(IdentifierTypeSyntax(name: owner.name.trimmed))
-        return Interface.Derivation.members(of: try Self.analysis(of: semantic, owner: name))
+        return Interface.Derivation.members(of: try Self.analysis(of: semantic, owner: name), sendable: isSendable(node))
     }
 
     public static func expansion(
@@ -57,6 +59,10 @@ public struct Macro: MemberMacro, MemberAttributeMacro, ExtensionMacro {
             $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "Operations"
         }
         return exists ? [] : [AttributeSyntax(attributeName: IdentifierTypeSyntax(name: .identifier("Operations")))]
+    }
+
+    private static func isSendable(_ node: AttributeSyntax) -> Bool {
+        node.arguments?.as(LabeledExprListSyntax.self)?.first?.expression.trimmedDescription == ".sendable"
     }
 
     private static func conformsToSemantic(_ owner: StructDeclSyntax) -> Bool {

@@ -22,16 +22,37 @@ import SwiftSyntaxBuilder
 // | leaf Call parameter               | symbol name + `Application`; child: capitalised name + `Call`        |
 extension Interface {
     public enum Derivation {
-        public static func members(of signature: Interface.Analysis) -> [DeclSyntax] {
+        public static func members(of signature: Interface.Analysis, sendable: Bool = false) -> [DeclSyntax] {
             let access = signature.product.access.map { "\($0.name.text) " } ?? ""
             let owner = signature.owner.trimmedDescription
-            let model = Self.model(of: signature, owner: owner, access: access)
+            let model = Self.model(of: signature, owner: owner, access: access, sendable: sendable)
             return [model.declaration]
-                + Self.witnesses(of: signature, model: model, owner: owner, access: access)
+                + Self.witnesses(of: signature, model: model, owner: owner, access: access, sendable: sendable)
                 + Self.primary(of: signature, access: access)
+                + [Self.construction(of: signature, access: access)]
                 + [Self.structure(of: signature, access: access)]
                 + [Self.interpreter(of: signature, access: access)]
                 + Self.call(of: signature, access: access)
+        }
+
+
+        private static func construction(of signature: Interface.Analysis, access: String) -> DeclSyntax {
+            let owner = signature.owner.trimmedDescription
+            var factory = "Factory"
+            while owner.split(separator: ".").contains(Substring(factory)) { factory = "_" + factory }
+            let arguments = signature.symbols.map { symbol in
+                let label = symbol.caseName == signature.run?.caseName ? "" : "\(symbol.caseName): "
+                let attempt = symbol.failure.trimmedDescription == "Swift.Never" || symbol.failure.trimmedDescription == "Never" ? "" : "try "
+                let asynchronous = symbol.signature.effects?.asyncSpecifier == nil ? "" : " async"
+                return "\(label){ (_: \(symbol.inputParameter(owner: owner)))\(asynchronous) throws(\(owner).\(symbol.name).Failure) -> \(owner).\(symbol.name).Output in \(attempt)\(factory).value(output: \(owner).\(symbol.name).Output.self, failure: \(owner).\(symbol.name).Failure.self, operation: Swift.String(reflecting: \(owner).\(symbol.name).self)) }"
+            } + signature.children.map { child in
+                "\(child.name.text): \(child.domain.trimmedDescription)._makeInterface(factory)"
+            }
+            return DeclSyntax(stringLiteral: """
+                \(access)static func _makeInterface<\(factory): Interface_Macro.Factory>(_ factory: \(factory).Type) -> Self {
+                    Self(\(arguments.joined(separator: ",\n")))
+                }
+                """)
         }
 
         // A child coordinate is a typed projection of the existing owner, not another
@@ -40,7 +61,7 @@ extension Interface {
             let owner = signature.owner.trimmedDescription
             let children = signature.children.map { child in
                 """
-                \(access)enum \(child.name.trimmedDescription): Interface_Macro.InterfaceMember {
+                \(access)enum \(child.name.trimmedDescription): Interface_Macro.Interface.Member {
                     \(access)typealias Owner = \(owner)
                     \(access)typealias Value = \(child.domain.trimmedDescription)
                     \(access)static var path: Swift.KeyPath<Owner, Value> { \\Owner.\(child.name.trimmedDescription) }
@@ -60,7 +81,7 @@ extension Interface {
             access: String
         ) -> [DeclSyntax] {
             guard let run = signature.run else { return [] }
-            return [DeclSyntax(stringLiteral: "\(access)typealias Primary = \(run.name)")] + ["Input", "Output", "Failure", "Application"].map { sort in
+            return [DeclSyntax(stringLiteral: "\(access)typealias Primary = \(run.name)"), DeclSyntax(stringLiteral: "\(access)typealias Request = \(run.name).Input")] + ["Input", "Output", "Failure", "Application"].map { sort in
                 DeclSyntax(stringLiteral: "\(access)typealias \(sort) = \(run.name).\(sort)")
             }
         }
@@ -76,7 +97,8 @@ extension Interface {
         private static func model(
             of signature: Interface.Analysis,
             owner: String,
-            access: String
+            access: String,
+            sendable: Bool
         ) -> Model {
             let requirements = signature.symbols.map { symbol in
                 "func \(symbol.caseName)(_ input: \(symbol.inputParameter(owner: owner)))\(symbol.effects) -> \(symbol.output.trimmedDescription)"
@@ -90,7 +112,7 @@ extension Interface {
                 """
             let declaration = DeclSyntax(stringLiteral: source)
             let analysis = Product.Analysis(declaration.cast(ProtocolDeclSyntax.self))
-            return Model(declaration: DeclSyntax(stringLiteral: "@Product\n\(source)"), analysis: analysis)
+            return Model(declaration: DeclSyntax(stringLiteral: "\(sendable ? "@Product(sendable: true)" : "@Product")\n\(source)"), analysis: analysis)
         }
 
         // The owner stores the product and witnesses its own protocol by forwarding to it, keeping the
@@ -99,12 +121,13 @@ extension Interface {
             of signature: Interface.Analysis,
             model: Model,
             owner: String,
-            access: String
+            access: String,
+            sendable: Bool
         ) -> [DeclSyntax] {
             // The primary operation has no name at its call site (`reminders.read()`), so its closure has none in
             // the owner's initializer either: `run` is storage, never spelled by the reader.
             let parameters = model.analysis.functionCoordinates.map { function in
-                "\(function.storage == signature.run?.caseName ? "_ run" : function.storage): @escaping \(function.closureType.trimmedDescription)"
+                "\(function.storage == signature.run?.caseName ? "_ run" : function.storage): @escaping \(sendable ? "@Sendable " : "")\(function.closureType.trimmedDescription)"
             } + model.analysis.propertyCoordinates.map { property in
                 "\(property.name.text): \(property.type.trimmedDescription)"
             }
@@ -217,7 +240,7 @@ extension Interface {
                 let bindings = childParameters.map { entry in
                     "(\(String(reflecting: entry.child.name.text)), \(String(reflecting: entry.parameter)), \(String(reflecting: entry.child.call.trimmedDescription)))"
                 }.joined(separator: ", ")
-                return "@_InterfaceChildEmbeddings(preserving: \(String(reflecting: preserving)), \(bindings))"
+                return "@_Embeddings(preserving: \(String(reflecting: preserving)), \(bindings))"
             }
             let source = "Coproduct" + (parameters.isEmpty ? "" : "<" + parameters.joined(separator: ", ") + ">")
             // A one-operation Call reads as that operation's input: `request.id`.
