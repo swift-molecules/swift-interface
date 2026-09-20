@@ -1,3 +1,4 @@
+public import Type_Algebra_Syntax
 public import Operation_Syntax
 public import Product_Syntax
 public import SwiftSyntax
@@ -16,6 +17,13 @@ extension Interface {
 
             public var call: TypeSyntax {
                 TypeSyntax(MemberTypeSyntax(baseType: domain, name: .identifier("Call")))
+            }
+        }
+
+        public var algebra: Type.Interface {
+            get throws {
+                try Type.Interface(signature: operations.algebra,
+                    children: Type.Record(children.map { .init($0.name.text, Type.Syntax.Expression($0.domain, parameters: []).algebra) }))
             }
         }
 

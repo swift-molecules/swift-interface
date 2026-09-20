@@ -7,7 +7,7 @@ struct Greeting: Greeting.`Protocol` {
     struct Message: Hashable {}
     enum Failure: Swift.Error { case refused }
 
-    @Operations
+    @Operations(composed: true)
     protocol `Protocol` {
         func greet(_ name: Name) throws(Failure) -> Message
     }

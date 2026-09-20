@@ -58,7 +58,7 @@ public struct Macro: MemberMacro, MemberAttributeMacro, ExtensionMacro {
         let exists = semantic.attributes.contains {
             $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "Operations"
         }
-        return exists ? [] : [AttributeSyntax(attributeName: IdentifierTypeSyntax(name: .identifier("Operations")))]
+        return exists ? [] : [AttributeSyntax(stringLiteral: "@Operations(composed: true)")]
     }
 
     private static func isSendable(_ node: AttributeSyntax) -> Bool {

@@ -4,7 +4,7 @@ import Interface_Macro
 struct Scoped: Scoped.`Protocol` {
     struct ScopedToken: ~Escapable {}
 
-    @Operations
+    @Operations(composed: true)
     protocol `Protocol` {
         func inspect(_ token: consuming ScopedToken)
     }

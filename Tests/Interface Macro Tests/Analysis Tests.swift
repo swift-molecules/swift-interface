@@ -10,7 +10,7 @@ import Testing
 @Test
 func `an interface reads its operations as symbols and its getters as children`() throws {
     let source = Parser.parse(source: """
-        @Operations
+        @Operations(composed: true)
         protocol `Protocol` {
             associatedtype Greeting: Greeting.`Protocol`
             var greeting: Greeting { get }

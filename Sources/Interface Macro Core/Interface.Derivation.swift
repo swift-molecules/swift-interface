@@ -1,3 +1,4 @@
+import Type_Algebra_Syntax
 import Operation_Syntax
 public import Product_Syntax
 public import SwiftSyntax
@@ -23,16 +24,27 @@ import SwiftSyntaxBuilder
 extension Interface {
     public enum Derivation {
         public static func members(of signature: Interface.Analysis, sendable: Bool = false) -> [DeclSyntax] {
+            do { return try derive(signature, sendable: sendable) }
+            catch { return [DeclSyntax(stringLiteral: "#error(\(String(reflecting: String(describing: error))))")] }
+        }
+
+        private static func derive(_ signature: Interface.Analysis, sendable: Bool) throws -> [DeclSyntax] {
+            let algebra = try signature.algebra
+            let implementation = try algebra.implementation
+            let requests = try algebra.requestRecord(children: Type.Record(signature.children.map {
+                .init($0.name.text, .atom(.init($0.call.trimmedDescription, scope: ["Swift"])))
+            }))
+
             let access = signature.product.access.map { "\($0.name.text) " } ?? ""
             let owner = signature.owner.trimmedDescription
-            let model = Self.model(of: signature, owner: owner, access: access, sendable: sendable)
+            let model = try Self.model(of: signature, implementation: implementation, owner: owner, access: access, sendable: sendable)
             return [model.declaration]
-                + Self.witnesses(of: signature, model: model, owner: owner, access: access, sendable: sendable)
+                + (try Self.witnesses(of: signature, model: model, owner: owner, access: access, sendable: sendable))
                 + Self.primary(of: signature, access: access)
                 + [Self.construction(of: signature, access: access)]
                 + [Self.structure(of: signature, access: access)]
                 + [Self.interpreter(of: signature, access: access)]
-                + Self.call(of: signature, access: access)
+                + Self.call(of: signature, requests: requests, access: access)
         }
 
 
@@ -96,14 +108,19 @@ extension Interface {
 
         private static func model(
             of signature: Interface.Analysis,
+            implementation: Type.Record,
             owner: String,
             access: String,
             sendable: Bool
-        ) -> Model {
-            let requirements = signature.symbols.map { symbol in
-                "func \(symbol.caseName)(_ input: \(symbol.inputParameter(owner: owner)))\(symbol.effects) -> \(symbol.output.trimmedDescription)"
-            } + signature.children.map { child in
-                "var \(child.name.text): \(child.domain.trimmedDescription) { get }"
+        ) throws -> Model {
+            let requirements = try implementation.fields.map { coordinate in
+                if let symbol = signature.symbols.first(where: { $0.caseName == coordinate.name }) {
+                    return "func \(coordinate.name)(_ input: \(symbol.inputParameter(owner: owner)))\(symbol.effects) -> \(symbol.output.trimmedDescription)"
+                }
+                guard let child = signature.children.first(where: { $0.name.text == coordinate.name }) else {
+                    throw Type.Failure("missing Swift representation for interface coordinate")
+                }
+                return "var \(coordinate.name): \(child.domain.trimmedDescription) { get }"
             }
             let source = """
                 \(access)protocol Model {
@@ -123,16 +140,13 @@ extension Interface {
             owner: String,
             access: String,
             sendable: Bool
-        ) -> [DeclSyntax] {
+        ) throws -> [DeclSyntax] {
             // The primary operation has no name at its call site (`reminders.read()`), so its closure has none in
             // the owner's initializer either: `run` is storage, never spelled by the reader.
-            let parameters = model.analysis.functionCoordinates.map { function in
-                "\(function.storage == signature.run?.caseName ? "_ run" : function.storage): @escaping \(sendable ? "@Sendable " : "")\(function.closureType.trimmedDescription)"
-            } + model.analysis.propertyCoordinates.map { property in
-                "\(property.name.text): \(property.type.trimmedDescription)"
-            }
-            let arguments = model.analysis.functionCoordinates.map { "\($0.storage): \($0.storage)" }
-                + model.analysis.propertyCoordinates.map { "\($0.name.text): \($0.name.text)" }
+            let record = try model.analysis.storage(sendable: sendable)
+            let parameters = try model.analysis.storage(sendable: sendable,
+                unlabelled: Set(signature.run.map { [$0.caseName] } ?? [])).parameters
+            let construction = try record.constructing("Product", from: .product(record.fields.map { .value($0.binding) }))
             let stored: [String] = [
                 "\(access)let product: Product",
                 """
@@ -141,8 +155,8 @@ extension Interface {
                 }
                 """,
                 """
-                \(access)init(\(parameters.joined(separator: ", "))) {
-                    self.product = Product(\(arguments.joined(separator: ", ")))
+                \(access)init(\(parameters)) {
+                    self.product = \(construction)
                 }
                 """,
             ]
@@ -198,6 +212,7 @@ extension Interface {
         // and Interface compiler fixtures lock down that boundary.
         private static func call(
             of signature: Interface.Analysis,
+            requests: Type.Record,
             access: String
         ) -> [DeclSyntax] {
             let owner = signature.owner.trimmedDescription
@@ -216,8 +231,7 @@ extension Interface {
                 + childParameters.flatMap { ["\($0.parameter): Operation::Operation.Coproduct", "\($0.parameter).Owner == \($0.child.domain.trimmedDescription)"] }
             let requirements = constraints.isEmpty ? "" : "\nwhere " + constraints.joined(separator: ", ")
             let capabilities = parameters.isEmpty ? "" : "@StructuralEquatable\n@StructuralHashable\n@StructuralSendable\n@Copyable\n"
-            let cases = leaves.map { "case \($0.symbol.caseName)(\($0.parameter))" }
-                + childParameters.map { "case \($0.child.name.text)(\($0.parameter))" }
+            let cases = zip(requests.fields, parameters).map { "case \($0.name)(\($1))" }
             let constructors = leaves.map { leaf in
                 let symbol = leaf.symbol
                 return """
