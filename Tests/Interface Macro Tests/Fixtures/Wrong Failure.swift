@@ -19,3 +19,6 @@ enum Counter {
 
 let result: Either<Greeting.Greet.Failure, Greeting.Greet.Output> =
     .left(Counter.Failure.refused)
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension Greeting.Greet.Input: Hashable, Sendable {}

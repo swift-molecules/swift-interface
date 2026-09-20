@@ -94,6 +94,13 @@ private struct `Compiler Tests` {
         #expect(diagnostic.contains("owned value, not a state transition"))
     }
 
+    @Test
+    func `native Sendable rejects unsafe closure captures`() throws {
+        let diagnostic = try typecheckFailure(named: "Non Sendable Capture.swift")
+        #expect(diagnostic.contains("non-Sendable"))
+        #expect(diagnostic.contains("reference"))
+    }
+
     private func typecheckFailure(named name: String) throws -> String {
         var products = Bundle.module.bundleURL
         while !FileManager.default.fileExists(

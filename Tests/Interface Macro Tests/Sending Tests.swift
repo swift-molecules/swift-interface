@@ -91,3 +91,10 @@ private enum NamedDomain {
     #expect(call[keyPath: input] == 7)
     #expect(call[keyPath: application]?.input.run == 7)
 }
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension SendingUpdate.Run.Input: Hashable, Sendable {}
+extension SendingComplete.Run.Input: Hashable, Sendable {}
+extension SendingDelete.Run.Input: Hashable, Sendable {}
+extension NamedDomain.Root.Run.Input: Hashable, Sendable {}
+extension ProjectionCollision.Run.Input: Hashable, Sendable {}

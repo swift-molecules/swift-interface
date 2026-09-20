@@ -6,7 +6,7 @@ import SwiftSyntaxBuilder
 
 // @Interface composes. The protocol's @Operations declares one symbol per operation (`Owner.Greet`, with its
 // Input/Output/Failure); @Product, attached to the generated model protocol, derives the stored arrows and
-// their initializer; structural capability macros, @Prisms/@Folds/@Cases and @Eliminator give the Call its
+// their initializer; conditional conformance helper, @Prisms/@Folds/@Cases and @Eliminator give the Call its
 // capabilities and algebra. What is derived here is what no atom models: the model's requirements, the
 // label-preserving witnesses, the Call's constructors, and the interpreter.
 //
@@ -123,13 +123,13 @@ extension Interface {
                 return "var \(coordinate.name): \(child.domain.trimmedDescription) { get }"
             }
             let source = """
-                \(access)protocol Model {
+                \(access)protocol Model\(sendable ? ": Swift.Sendable" : "") {
                 \(requirements.joined(separator: "\n"))
                 }
                 """
             let declaration = DeclSyntax(stringLiteral: source)
             let analysis = Product.Analysis(declaration.cast(ProtocolDeclSyntax.self))
-            return Model(declaration: DeclSyntax(stringLiteral: "\(sendable ? "@Product(sendable: true)" : "@Product")\n\(source)"), analysis: analysis)
+            return Model(declaration: DeclSyntax(stringLiteral: "@Product\n\(source)"), analysis: analysis)
         }
 
         // The owner stores the product and witnesses its own protocol by forwarding to it, keeping the
@@ -143,8 +143,8 @@ extension Interface {
         ) throws -> [DeclSyntax] {
             // The primary operation has no name at its call site (`reminders.read()`), so its closure has none in
             // the owner's initializer either: `run` is storage, never spelled by the reader.
-            let record = try model.analysis.storage(sendable: sendable)
-            let parameters = try model.analysis.storage(sendable: sendable,
+            let record = try model.analysis.storage()
+            let parameters = try model.analysis.storage(
                 unlabelled: Set(signature.run.map { [$0.caseName] } ?? [])).parameters
             let construction = try record.constructing("Product", from: .product(record.fields.map { .value($0.binding) }))
             let stored: [String] = [
@@ -199,7 +199,7 @@ extension Interface {
         }
 
         // The Call is generic in its leaves so that the compiler, not this macro, decides its capabilities:
-        // The structural capability macros add each exactly when every leaf has it. A leaf is anything `Applying` the
+        // The conditional conformance helper add each exactly when every leaf has it. A leaf is anything `Applying` the
         // operation's Input (its Application, in practice). Child calls remain generic too; constrained
         // child inclusion maps expose property navigation on their canonical specialization. Its algebra is attached, not derived here:
         // @Prisms, @Folds and @Cases from swift-optic, @Eliminator from swift-coproduct.
@@ -230,7 +230,7 @@ extension Interface {
             let constraints = leaves.map { "\($0.parameter): Operation::Operation.Applying<\($0.symbol.inputPath(owner: owner))>" }
                 + childParameters.flatMap { ["\($0.parameter): Operation::Operation.Coproduct", "\($0.parameter).Owner == \($0.child.domain.trimmedDescription)"] }
             let requirements = constraints.isEmpty ? "" : "\nwhere " + constraints.joined(separator: ", ")
-            let capabilities = parameters.isEmpty ? "" : "@StructuralEquatable\n@StructuralHashable\n@StructuralSendable\n@Copyable\n"
+            let capabilities = parameters.isEmpty ? "" : "@_Structural\n"
             let cases = zip(requests.fields, parameters).map { "case \($0.name)(\($1))" }
             let constructors = leaves.map { leaf in
                 let symbol = leaf.symbol

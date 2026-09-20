@@ -26,3 +26,6 @@ private func invokePrimary<Domain: Interface.Primary>(
     let value = try await invokePrimary(domain, .init(41))
     #expect(value == 42)
 }
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension StructureLeaf.Run.Input: Hashable, Sendable {}

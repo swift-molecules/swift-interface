@@ -15,3 +15,6 @@ func requireCopyable<Value: Copyable>(_: Value) {}
 func prove() {
     requireCopyable(Linear.Call.consume(.init()))
 }
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension Linear.Consume.Input: Sendable {}

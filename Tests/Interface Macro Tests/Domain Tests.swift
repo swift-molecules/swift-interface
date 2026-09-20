@@ -416,3 +416,13 @@ struct `Domain Tests` {
         }
     }
 }
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension Greeting.Greet.Input: Hashable, Sendable {}
+extension Counter.Increment.Input: Hashable, Sendable {}
+extension Nested.Transform.Input: Hashable, Sendable {}
+extension Numerals.Digit.Input: Hashable, Sendable {}
+extension Linear.Consume.Input: Sendable {}
+extension LinearPair.Combine.Input: Sendable {}
+extension Observation.Inspect.Input: Hashable, Sendable {}
+extension Owned.Consume.Input: Sendable {}

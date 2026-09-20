@@ -12,3 +12,7 @@ struct Fixture: Fixture.`Protocol` {
 let incomplete = Fixture.Call.Eliminator<String>(
     first: { String($0.input.value) }
 )
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension Fixture.First.Input: Hashable, Sendable {}
+extension Fixture.Second.Input: Hashable, Sendable {}

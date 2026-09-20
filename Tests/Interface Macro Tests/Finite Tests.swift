@@ -62,3 +62,7 @@ private func `pure elimination can return an effectful arrow without another ope
     case .right: Issue.record("Expected success")
     }
 }
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension Finite.First.Input: Hashable, Sendable {}
+extension Finite.Second.Input: Hashable, Sendable {}

@@ -33,3 +33,7 @@ let operation = Greeting.Greet.Application(.init(.init()))
 let result: Either<Counter.Increment.Failure, Counter.Increment.Output> =
     .right(.init())
 accept(operation, result: result)
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension Greeting.Greet.Input: Hashable, Sendable {}
+extension Counter.Increment.Input: Hashable, Sendable {}

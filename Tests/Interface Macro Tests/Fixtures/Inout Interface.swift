@@ -7,3 +7,6 @@ struct Mutation: Mutation.`Protocol` {
         func mutate(_ value: inout Int)
     }
 }
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension Mutation.Mutate.Input: Hashable, Sendable {}

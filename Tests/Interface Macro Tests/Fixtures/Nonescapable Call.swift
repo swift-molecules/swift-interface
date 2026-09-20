@@ -13,3 +13,6 @@ struct Scoped: Scoped.`Protocol` {
 func prove() {
     _ = Scoped.Call.inspect(.init())
 }
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension Scoped.Inspect.Input: Sendable {}

@@ -31,3 +31,7 @@ struct Example: Example.`Protocol` {
 let incomplete = Example.Call.Eliminator<String>(
     greeting: { _ in "greeting" }
 )
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension Greeting.Greet.Input: Hashable, Sendable {}
+extension Counter.Increment.Input: Hashable, Sendable {}

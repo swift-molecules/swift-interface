@@ -187,3 +187,12 @@ private struct `Wrapper Tests` {
         #expect(try useGeneric(removal) == 3)
     }
 }
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension Store.Items.Add.Input: Hashable, Sendable {}
+extension Store.Items.Remove.Input: Hashable, Sendable {}
+extension Store.Items.Count.Input: Hashable, Sendable {}
+extension Store.Removal.Item.Input: Hashable, Sendable {}
+extension Store.Removal.Today.Input: Hashable, Sendable {}
+extension Store.Removal.CompletedIn.Input: Hashable, Sendable {}
+extension Store.Removal.CompletedMatching.Input: Hashable, Sendable {}

@@ -50,6 +50,7 @@ let package = Package(
             name: "Interface Macro Plugin",
             dependencies: [
                 "Interface Macro Core",
+                .product(name: "Type Algebra Syntax", package: "swift-algebra"),
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),
                 .product(name: "SwiftSyntaxBuilder", package: "swift-syntax"),

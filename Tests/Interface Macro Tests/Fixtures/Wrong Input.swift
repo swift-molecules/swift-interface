@@ -16,3 +16,6 @@ enum Counter {
 }
 
 let application: Greeting.Greet.Application = .init(Counter.Limit())
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension Greeting.Greet.Input: Hashable, Sendable {}

@@ -1,8 +1,8 @@
 import Interface_Macro
 import Testing
 
-@Interface(.sendable)
-private struct SendingDomain: SendingDomain.Interface {
+@Interface
+private struct SendingDomain: SendingDomain.Interface, Sendable {
     protocol Interface { func callAsFunction(_ value: Int) async throws -> Int }
 }
 
@@ -23,8 +23,8 @@ private struct Factory: Factory.Interface {
     #expect(Factory { _ in 42 }() == 42)
 }
 
-@Interface(.sendable)
-private struct Producer: Producer.Interface {
+@Interface
+private struct Producer: Producer.Interface, Sendable {
     struct Token: ~Copyable, Sendable { var value: Int }
     protocol Interface { func callAsFunction() -> Token }
 }
@@ -34,3 +34,8 @@ private struct Producer: Producer.Interface {
     let token = domain()
     #expect(token.value == 42)
 }
+
+// Capabilities are declared using Swift protocols at the point of use.
+extension SendingDomain.Run.Input: Hashable, Sendable {}
+extension Factory.Run.Input: Hashable, Sendable {}
+extension Producer.Run.Input: Hashable, Sendable {}

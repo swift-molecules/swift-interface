@@ -12,8 +12,8 @@
 // optional key paths compose case extraction with input access: `\.delete?.id`.
 @attached(member, names: arbitrary)
 @attached(memberAttribute)
-@attached(extension, conformances: Interface.Primary, Constructible, Swift.Sendable)
-public macro Interface(_ option: Interface.Option? = nil) = #externalMacro(
+@attached(extension, conformances: Interface.Primary, Constructible)
+public macro Interface() = #externalMacro(
     module: "Interface_Macro_Plugin",
     type: "Macro"
 )
@@ -25,6 +25,4 @@ public macro _Embeddings(preserving: String, _ children: (String, String, String
     module: "Interface_Macro_Plugin", type: "Embeddings"
 )
 
-public enum Interface {
-    public enum Option: Sendable { case sendable }
-}
+public enum Interface {}
