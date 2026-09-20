@@ -64,7 +64,7 @@ extension Interface {
                 \(access)enum \(child.name.trimmedDescription): Interface_Macro.Interface.Member {
                     \(access)typealias Owner = \(owner)
                     \(access)typealias Value = \(child.domain.trimmedDescription)
-                    \(access)static var path: Swift.KeyPath<Owner, Value> { \\Owner.\(child.name.trimmedDescription) }
+                    \(access)static var path: Swift.KeyPath<Owner, Value> { \\.\(child.name.trimmedDescription) }
                 }
                 """
             }.joined(separator: "\n")
@@ -201,11 +201,11 @@ extension Interface {
             access: String
         ) -> [DeclSyntax] {
             let owner = signature.owner.trimmedDescription
-            let leaves = signature.symbols.map { symbol in
-                (symbol: symbol, parameter: "\(symbol.name)Application", bound: "\(owner).\(symbol.name).Application")
+            let leaves = signature.symbols.enumerated().map { index, symbol in
+                (symbol: symbol, parameter: "OperationApplication\(index)", bound: "\(owner).\(symbol.name).Application")
             }
-            let childParameters = signature.children.map { child in
-                (child: child, parameter: child.name.text.prefix(1).uppercased() + child.name.text.dropFirst() + "Call")
+            let childParameters = signature.children.enumerated().map { index, child in
+                (child: child, parameter: "ChildCall\(index)")
             }
             let parameters = leaves.map(\.parameter) + childParameters.map(\.parameter)
             let generic = parameters.isEmpty ? "" : "<" + parameters.map { "\($0): ~Copyable" }.joined(separator: ", ") + ">"
