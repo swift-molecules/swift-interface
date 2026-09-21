@@ -1,5 +1,6 @@
 import Type_Algebra_Syntax
 import Operation_Syntax
+import Operation_Macro_Core
 public import Product_Syntax
 public import SwiftSyntax
 import SwiftSyntaxBuilder
@@ -23,12 +24,12 @@ import SwiftSyntaxBuilder
 // | leaf Call parameter               | symbol name + `Application`; child: capitalised name + `Call`        |
 extension Interface {
     public enum Derivation {
-        public static func members(of signature: Interface.Analysis, sendable: Bool = false, defaultChildren: Bool = false) -> [DeclSyntax] {
-            do { return try derive(signature, sendable: sendable, defaultChildren: defaultChildren) }
+        public static func members(of signature: Interface.Analysis, sendable: Bool = false, inputAttributes: [AttributeSyntax] = [], inputConformances: [String] = []) -> [DeclSyntax] {
+            do { return try derive(signature, sendable: sendable, inputAttributes: inputAttributes, inputConformances: inputConformances) }
             catch { return [DeclSyntax(stringLiteral: "#error(\(String(reflecting: String(describing: error))))")] }
         }
 
-        private static func derive(_ signature: Interface.Analysis, sendable: Bool, defaultChildren: Bool) throws -> [DeclSyntax] {
+        private static func derive(_ signature: Interface.Analysis, sendable: Bool, inputAttributes: [AttributeSyntax], inputConformances: [String]) throws -> [DeclSyntax] {
             let algebra = try signature.algebra
             let implementation = try algebra.implementation
             let requests = try algebra.requestRecord(children: Type.Record(signature.children.map {
@@ -38,47 +39,52 @@ extension Interface {
             let access = signature.product.access.map { "\($0.name.text) " } ?? ""
             let owner = signature.owner.trimmedDescription
             let model = try Self.model(of: signature, implementation: implementation, owner: owner, access: access, sendable: sendable)
-            return [model.declaration]
-                + (try Self.witnesses(of: signature, model: model, owner: owner, access: access, sendable: sendable, defaultChildren: defaultChildren))
+            return Self.operations(of: signature, access: access, inputAttributes: inputAttributes, inputConformances: inputConformances) + [model.declaration]
+                + (try Self.witnesses(of: signature, model: model, owner: owner, access: access, sendable: sendable))
                 + Self.primary(of: signature, access: access)
-                + [Self.construction(of: signature, access: access)]
                 + [Self.structure(of: signature, access: access)]
                 + [Self.interpreter(of: signature, access: access)]
-                + Self.evaluation(of: signature, access: access)
                 + Self.call(of: signature, requests: requests, access: access)
         }
 
 
-        private static func construction(of signature: Interface.Analysis, access: String) -> DeclSyntax {
+        private static func operations(
+            of signature: Interface.Analysis, access: String,
+            inputAttributes: [AttributeSyntax], inputConformances: [String]
+        ) -> [DeclSyntax] {
             let owner = signature.owner.trimmedDescription
-            var factory = "Factory"
-            while owner.split(separator: ".").contains(Substring(factory)) { factory = "_" + factory }
-            let arguments = signature.symbols.map { symbol in
-                let label = symbol.caseName == signature.run?.caseName ? "" : "\(symbol.caseName): "
-                let attempt = symbol.failure.trimmedDescription == "Swift.Never" || symbol.failure.trimmedDescription == "Never" ? "" : "try "
-                let asynchronous = symbol.signature.effects?.asyncSpecifier == nil ? "" : " async"
-                return "\(label){ (_: \(symbol.inputParameter(owner: owner)))\(asynchronous) throws(\(owner).\(symbol.name).Failure) -> \(owner).\(symbol.name).Output in \(attempt)\(factory).value(output: \(owner).\(symbol.name).Output.self, failure: \(owner).\(symbol.name).Failure.self, operation: Swift.String(reflecting: \(owner).\(symbol.name).self)) }"
-            } + signature.children.map { child in
-                "\(child.name.text): \(child.domain.trimmedDescription)._makeInterface(factory)"
+            return Operation.Derivation.peers(
+                of: signature.operations,
+                inputAttributes: inputAttributes,
+                inputConformances: inputConformances,
+                conformances: ["Operation::Operation.Composed"]
+            ) { symbol in
+                [DeclSyntax(stringLiteral: """
+                    \(access)typealias Call = \(owner).Call
+                    \(access)static func call(_ input: consuming Input) -> Call { .\(symbol.caseName)(input) }
+                    \(access)static func input(from call: consuming Call) -> Input? {
+                        switch consume call {
+                        case let .\(symbol.caseName)(application): return application.consume()
+                        \(signature.symbols.count == 1 && signature.children.isEmpty ? "" : "default: return nil")
+                        }
+                    }
+                    \(access)static func run(_ owner: \(owner), _ input: consuming Input)\(symbol.effects) -> Output {
+                        \(symbol.signature.returnsVoid ? "" : "return ")\(symbol.prefix)owner.product.\(symbol.caseName)(input)
+                    }
+                    """)]
             }
-            return DeclSyntax(stringLiteral: """
-                \(access)static func _makeInterface<\(factory): Interface_Macro.Factory>(_ factory: \(factory).Type) -> Self {
-                    Self(\(arguments.joined(separator: ",\n")))
-                }
-                """)
         }
 
         // A child coordinate is a typed projection of the existing owner, not another
         // model of its operations. Interpreters can select it without parsing imported syntax.
         private static func structure(of signature: Interface.Analysis, access: String) -> DeclSyntax {
             let owner = signature.owner.trimmedDescription
-            let writable = signature.symbols.isEmpty
             let children = signature.children.map { child in
                 """
-                \(access)enum \(child.name.trimmedDescription): Interface_Macro.Interface.\(writable ? "WritableMember" : "Member") {
+                \(access)enum \(child.name.trimmedDescription): Interface_Macro.Interface.Member {
                     \(access)typealias Owner = \(owner)
                     \(access)typealias Value = \(child.domain.trimmedDescription)
-                    \(access)static var \(writable ? "writablePath" : "path"): Swift.\(writable ? "WritableKeyPath" : "KeyPath")<Owner, Value> { \\.\(child.name.trimmedDescription) }
+                    \(access)static var path: Swift.WritableKeyPath<Owner, Value> { \\.\(child.name.trimmedDescription) }
                 }
                 """
             }.joined(separator: "\n")
@@ -100,8 +106,8 @@ extension Interface {
             }
         }
 
-        // The model of an interface is @Product's: a protocol with one Input-typed arrow per symbol and one
-        // getter per child. Operation-bearing owners store Product; pure products project it from their children.
+        // The model is a product of Input-typed operation arrows and child values.
+        // Every owner stores this product; composition never selects an alternate storage layout.
         // Its analysis is read back through Product.Analysis
         // so that the owner's forwarding initializer takes exactly the product's parameters.
         struct Model {
@@ -142,8 +148,7 @@ extension Interface {
             model: Model,
             owner: String,
             access: String,
-            sendable: Bool,
-            defaultChildren: Bool
+            sendable: Bool
         ) throws -> [DeclSyntax] {
             // The primary operation has no name at its call site (`reminders.read()`), so its closure has none in
             // the owner's initializer either: `run` is storage, never spelled by the reader.
@@ -152,7 +157,7 @@ extension Interface {
                 unlabelled: Set(signature.run.map { [$0.caseName] } ?? [])).parameters
             let construction = try record.constructing("Product", from: .product(record.fields.map { .value($0.binding) }))
             let stored: [String] = [
-                "\(access)let product: Product",
+                "\(access)var product: Product",
                 """
                 \(access)init(_ product: Product) {
                     self.product = product
@@ -164,33 +169,16 @@ extension Interface {
                 }
                 """,
             ]
-            // Pure child products store their coordinates directly. The immutable
-            // Product is a projection of that storage, so mutation is linear in the
-            // generated source and needs neither sibling reconstruction nor recapture.
-            if signature.symbols.isEmpty && !signature.children.isEmpty {
-                let fields = signature.children.map { "\(access)var \($0.name.text): \($0.domain.trimmedDescription)" }
-                let arguments = signature.children.map { "\($0.name.text): self.\($0.name.text)" }.joined(separator: ", ")
-                let parameters = signature.children.map {
-                    "\($0.name.text): \($0.domain.trimmedDescription)" + (defaultChildren ? " = .init()" : "")
-                }.joined(separator: ", ")
-                let assign = signature.children.map { "self.\($0.name.text) = \($0.name.text)" }.joined(separator: "\n")
-                let unpack = signature.children.map { "self.\($0.name.text) = product.\($0.name.text)" }.joined(separator: "\n")
-                return (fields + [
-                    "\(access)var product: Product { Product(\(arguments)) }",
-                    "\(access)init(_ product: Product) { \(unpack) }",
-                    "\(access)init(\(parameters)) { \(assign) }",
-                ]).map { DeclSyntax(stringLiteral: $0) }
-            }
             let children = signature.children.map {
-                "\(access)var \($0.name.text): \($0.domain.trimmedDescription) { product.\($0.name.text) }"
+                "\(access)var \($0.name.text): \($0.domain.trimmedDescription) { get { product.\($0.name.text) } set { product.\($0.name.text) = newValue } }"
             }
 
             let calls = signature.symbols.flatMap { symbol -> [String] in
                 let input = symbol.inputPath(owner: owner)
                 let name = symbol.isPrimary ? "callAsFunction" : symbol.signature.name.text
                 let output = symbol.output.trimmedDescription
-                let direct = "\(symbol.prefix)product.\(symbol.caseName)(\(input)(\(symbol.construction)))"
-                let forwarding = "\(symbol.prefix)product.\(symbol.caseName)(input)"
+                let direct = "\(symbol.prefix)\(owner).\(symbol.name).run(self, \(input)(\(symbol.construction)))"
+                let forwarding = "\(symbol.prefix)\(owner).\(symbol.name).run(self, input)"
                 return [
                     """
                     \(access)func \(name)\(symbol.signature.declaration.signature.trimmedDescription) {
@@ -205,53 +193,6 @@ extension Interface {
                 ]
             }
             return (stored + children + calls).map { DeclSyntax(stringLiteral: $0) }
-        }
-
-        // Evaluate the canonical call without erasing its output. A single operation
-        // returns its output directly; a sum retains the selected operation/child tag.
-        private static func evaluation(of signature: Interface.Analysis, access: String) -> [DeclSyntax] {
-            let owner = signature.owner.trimmedDescription
-            if signature.children.isEmpty, signature.symbols.count == 1, let symbol = signature.symbols.first {
-                return [DeclSyntax(stringLiteral: """
-                    \(access)typealias Evaluation = \(owner).\(symbol.name).Output
-                    \(access)func evaluate(_ call: consuming Call)\(symbol.effects) -> Evaluation {
-                        switch consume call {
-                        case let .\(symbol.caseName)(application):
-                            return \(symbol.prefix)product.\(symbol.caseName)(application.consume())
-                        }
-                    }
-                    """)]
-            }
-            let coordinates = signature.symbols.map { (name: $0.caseName, type: "\(owner).\($0.name).Output") }
-                + signature.children.map { (name: $0.name.text, type: "\($0.domain.trimmedDescription).Evaluation") }
-            if coordinates.isEmpty {
-                return [DeclSyntax(stringLiteral: """
-                    \(access)typealias Evaluation = Swift.Never
-                    \(access)func evaluate(_ call: consuming Call) -> Evaluation { switch consume call {} }
-                    """)]
-            }
-            let parameters = coordinates.indices.map { "Value\($0)" }
-            let cases = zip(coordinates, parameters).map { "case \($0.name)(\($1))" }.joined(separator: "\n")
-            let asynchronous = !signature.children.isEmpty || signature.symbols.contains { $0.signature.effects?.asyncSpecifier != nil }
-            let throwing = !signature.children.isEmpty || signature.symbols.contains { $0.signature.effects?.throwsClause != nil }
-            let effects = (asynchronous ? " async" : "") + (throwing ? " throws" : "")
-            let arms = signature.symbols.map {
-                "case let .\($0.caseName)(application): return .\($0.caseName)(\($0.prefix)product.\($0.caseName)(application.consume()))"
-            } + signature.children.map {
-                "case let .\($0.name.text)(call): return .\($0.name.text)(try await Interface_Macro.Interface.evaluate(self.\($0.name.text), call))"
-            }
-            return [DeclSyntax(stringLiteral: """
-                @_Structural
-                \(access)enum Evaluations<\(parameters.map { "\($0): ~Copyable" }.joined(separator: ", "))>: ~Copyable {
-                    \(cases)
-                }
-                \(access)typealias Evaluation = Evaluations<\(coordinates.map(\.type).joined(separator: ", "))>
-                \(access)func evaluate(_ call: consuming Call)\(effects) -> Evaluation {
-                    switch consume call {
-                    \(arms.joined(separator: "\n"))
-                    }
-                }
-                """)]
         }
 
         // The owner runs a Call by handing itself to the Call.
@@ -348,7 +289,7 @@ extension Interface {
             let arms = leaves.map { leaf -> String in
                 """
                 \(leaf.symbol.caseName): { (application: consuming \(leaf.parameter)) async throws -> Void in
-                    \(leaf.symbol.signature.returnsVoid ? "" : "_ = ")\(leaf.symbol.prefix)owner.product.\(leaf.symbol.caseName)(application.consume())
+                    _ = \(leaf.symbol.prefix)\(owner).\(leaf.symbol.name).run(owner, application.consume())
                 }
                 """
             } + childParameters.map { entry in

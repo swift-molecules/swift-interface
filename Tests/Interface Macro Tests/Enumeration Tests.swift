@@ -2,7 +2,7 @@ import Finite_Macro
 import Interface_Macro
 import Testing
 
-@Interface
+@Interface(inputConformances: ["Finite::Finite.Enumerable", "Swift.CaseIterable", "Swift.Hashable", "Swift.Sendable"], inputAttributes: "@Finite", "@Representable")
 struct FiniteAssessment: FiniteAssessment.Interface, Sendable {
     protocol Interface {
         func `het bezit rechtspersoonlijkheid`(
@@ -48,19 +48,19 @@ private enum FiniteOperations {
     #expect(Array(FiniteOperations.Evaluate.Input.allCases.map(\.flag)) == [nil, false, true])
 }
 
-@Interface
-private struct AutomaticInputs: AutomaticInputs.Interface {
-    protocol Interface {
-        func mixed(_ flag: Bool, possible: Swift.Optional<Swift.Bool>) -> Bool
-        func text(_ first: String, second: String) -> String
-        func empty() -> Bool
-        func reserved(values: String) -> String
-    }
+@Interface(inputAttributes: "@Representable")
+private struct Texts: Texts.Interface {
+    protocol Interface { func text(_ first: String, second: String) -> String }
 }
 
-@Test private func automaticCapabilitiesFollowEachInputShape() {
-    #expect(AutomaticInputs.Mixed.Input.count.rawValue == 6)
-    #expect(AutomaticInputs.Empty.Input.count.rawValue == 1)
-    #expect(Array(AutomaticInputs.Text.Input("first", second: "second").values) == ["first", "second"])
-    #expect(AutomaticInputs.Reserved.Input(values: "kept").values == "kept")
+@Test private func explicitlySelectedRepresentationUsesItsOwningDerivation() {
+    #expect(Array(Texts.Text.Input("first", second: "second").values) == ["first", "second"])
+}
+
+@Interface
+private struct Ordinary: Ordinary.Interface {
+    protocol Interface { func reserved(values: String) -> String }
+}
+@Test private func ordinaryInputsDoNotReserveAnotherDerivationsNames() {
+    #expect(Ordinary.Reserved.Input(values: "kept").values == "kept")
 }

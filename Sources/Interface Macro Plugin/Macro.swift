@@ -1,5 +1,4 @@
 import Operation_Macro_Core
-import Finite_Macro_Core
 import Type_Algebra_Syntax
 import Interface_Macro_Core
 import SwiftSyntax
@@ -16,7 +15,7 @@ public struct Macro: MemberMacro, ExtensionMacro {
     ) throws -> [ExtensionDeclSyntax] {
         guard let owner = declaration.as(StructDeclSyntax.self), let semantic = Self.semantic(of: owner) else { return [] }
         let signature = try Self.analysis(of: semantic, owner: TypeSyntax(type))
-        var conformances: [String] = ["Interface_Macro.Constructible", "Interface_Macro.Interface.Evaluating"]
+        var conformances: [String] = []
         if signature.run != nil { conformances.append("Interface_Macro.Interface.Primary") }
         guard !conformances.isEmpty else { return [] }
         return [try ExtensionDeclSyntax("extension \(type): \(raw: conformances.joined(separator: ", ")) {}")]
@@ -48,59 +47,18 @@ public struct Macro: MemberMacro, ExtensionMacro {
             return member.baseType.trimmed
         }.first ?? TypeSyntax(IdentifierTypeSyntax(name: owner.name.trimmed))
         let analysis = try Self.analysis(of: semantic, owner: name)
-        let defaults: Bool
-        if case let .argumentList(arguments) = node.arguments,
-            let argument = arguments.first(where: { $0.label?.text == "defaults" }) {
-            guard let literal = argument.expression.as(BooleanLiteralExprSyntax.self) else {
-                throw MacroExpansionErrorMessage("@Interface defaults must be a Boolean literal")
-            }
-            defaults = literal.literal.text == "true"
-        } else { defaults = false }
-        guard !defaults || (analysis.symbols.isEmpty && !analysis.children.isEmpty) else {
-            throw MacroExpansionErrorMessage("@Interface(defaults: true) requires a nonempty product of children with init()")
-        }
-        let members = Interface.Derivation.members(of: analysis, sendable: Type.Syntax.Conformance.contains("Sendable", in: owner), defaultChildren: defaults)
-        // Explicit @Operations remains an override. Otherwise the composition
-        // owns the capabilities of its generated input records.
-        guard !Self.hasOperations(semantic) else { return members }
-        return members + Operation.Derivation.peers(of: Operation.Analysis(declaration: semantic, owner: name, isComposed: true)).map(Self.decorateInputs)
-    }
-
-    private static func hasOperations(_ declaration: ProtocolDeclSyntax) -> Bool {
-        declaration.attributes.contains {
+        guard !semantic.attributes.contains(where: {
             $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "Operations"
+        }) else {
+            throw MacroExpansionErrorMessage("@Interface composes its operation symbols; forward input capabilities on @Interface instead of attaching @Operations to its signature.")
         }
-    }
-
-    private static func decorateInputs(_ declaration: DeclSyntax) -> DeclSyntax {
-        guard var symbol = declaration.as(EnumDeclSyntax.self) else { return declaration }
-        symbol.memberBlock.members = MemberBlockItemListSyntax(symbol.memberBlock.members.map(Self.decorateInput))
-        return DeclSyntax(symbol)
-    }
-
-    private static func decorateInput(_ member: MemberBlockItemSyntax) -> MemberBlockItemSyntax {
-        guard var input = member.decl.as(StructDeclSyntax.self), input.name.text == "Input",
-            !(input.inheritanceClause?.trimmedDescription.contains("~Copyable") ?? false) else { return member }
-        let fields = Type.Syntax.Properties(input).fields
-        if Finite_Macro_Core.Derivation.supportsAutomaticEnumeration(of: input) {
-            input.attributes.append(.attribute(AttributeSyntax(stringLiteral: "@Finite")))
-            var inherited = input.inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
-            // Only the closed Bool/Optional/empty shapes recognized by Finite are
-            // opted in automatically. Unknown nominal types keep explicit capabilities.
-            inherited += ["Finite::Finite.Enumerable", "Swift.CaseIterable", "Swift.Hashable", "Swift.Sendable"]
-            input.inheritanceClause = InheritanceClauseSyntax(inheritedTypes: InheritedTypeListSyntax(
-                inherited.enumerated().map { offset, name in
-                    InheritedTypeSyntax(type: TypeSyntax(stringLiteral: name), trailingComma: offset + 1 < inherited.count ? .commaToken() : nil)
-                }
-            ))
-        }
-        if !fields.contains(where: { ["values", "Index", "index", "tabulate"].contains(String($0.name.filter { $0 != "`" })) }),
-            let first = fields.first, fields.allSatisfy({ $0.type.trimmedDescription == first.type.trimmedDescription }) {
-            input.attributes.append(.attribute(AttributeSyntax(stringLiteral: "@Representable")))
-        }
-        var result = member
-        result.decl = DeclSyntax(input)
-        return result
+        let input = try Operation.Derivation.Input(node)
+        return Interface.Derivation.members(
+            of: analysis,
+            sendable: Type.Syntax.Conformance.contains("Sendable", in: owner),
+            inputAttributes: input.attributes,
+            inputConformances: input.conformances
+        )
     }
 
     private static func conformsToSemantic(_ owner: StructDeclSyntax) -> Bool {

@@ -2,13 +2,9 @@ import Dependencies
 public import Interface_Macro
 import IssueReporting
 
-@attached(member, names: named(testValue))
-public macro Unimplemented(streams: Unimplemented.Streams) = #externalMacro(module: "Interface_Macro_Plugin", type: "Unimplemented")
-
 /// Every use reports an issue. Only explicitly supported output shapes have
 /// fallback values; arbitrary domain values and typed errors are never invented.
-public enum Unimplemented: Factory {
-    public enum Streams { case finished }
+public enum Unimplemented {
     private struct Failure: Error {}
 
     public static func value<Output: ~Copyable, Failure: Error>(

@@ -4,7 +4,6 @@ import Interface_Macro
 struct Linear: Linear.`Protocol` {
     struct Token: ~Copyable {}
 
-    @Operations(composed: true)
     protocol `Protocol` {
         func consume(_ token: consuming Token)
     }

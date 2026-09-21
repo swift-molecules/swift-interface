@@ -3,5 +3,5 @@ import SwiftSyntaxMacros
 
 @main
 struct Plugin: CompilerPlugin {
-    let providingMacros: [any SwiftSyntaxMacros.Macro.Type] = [Macro.self, Unimplemented.self, Embeddings.self]
+    let providingMacros: [any SwiftSyntaxMacros.Macro.Type] = [Macro.self, Embeddings.self]
 }

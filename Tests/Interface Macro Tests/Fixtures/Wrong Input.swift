@@ -5,7 +5,6 @@ struct Greeting: Greeting.`Protocol` {
     struct Name: Hashable {}
     struct Message: Hashable {}
 
-    @Operations(composed: true)
     protocol `Protocol` {
         func greet(_ name: Name) -> Message
     }

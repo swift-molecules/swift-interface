@@ -11,7 +11,6 @@ struct Greeting: Greeting.`Protocol` {
         var value: String
     }
 
-    @Operations(composed: true)
     protocol `Protocol` {
         func greet(_ name: Name) async -> Message
     }
@@ -31,7 +30,6 @@ struct Counter: Counter.`Protocol` {
         case exceeded
     }
 
-    @Operations(composed: true)
     protocol `Protocol` {
         func increment(limit: Limit) async throws(Error) -> Value
     }
@@ -39,7 +37,6 @@ struct Counter: Counter.`Protocol` {
 
 @Interface
 struct Example: Example.`Protocol` {
-    @Operations(composed: true)
     protocol `Protocol` {
         associatedtype Greeting: Interface_Macro_Tests::Greeting.`Protocol`
         associatedtype Counter: Interface_Macro_Tests::Counter.`Protocol`
@@ -55,7 +52,6 @@ struct Nested: Nested.`Protocol` {
     struct Output: Hashable {}
     enum Failure: Swift.Error {}
 
-    @Operations(composed: true)
     protocol `Protocol` {
         func transform(
             _ values: [Input]
@@ -73,7 +69,6 @@ struct Numerals: Numerals.`Protocol` {
         case unreadable
     }
 
-    @Operations(composed: true)
     protocol `Protocol` {
         func digit(_ digit: Numeral) throws(Failure) -> Numeral
     }
@@ -85,7 +80,6 @@ struct Linear: Linear.`Protocol` {
         let value: Int
     }
 
-    @Operations(composed: true)
     protocol `Protocol` {
         func consume(_ token: consuming Token) -> Int
     }
@@ -93,7 +87,6 @@ struct Linear: Linear.`Protocol` {
 
 @Interface
 struct LinearExample: LinearExample.`Protocol` {
-    @Operations(composed: true)
     protocol `Protocol` {
         associatedtype Linear: Interface_Macro_Tests::Linear.`Protocol`
 
@@ -107,7 +100,6 @@ struct LinearPair: LinearPair.`Protocol` {
         let value: Int
     }
 
-    @Operations(composed: true)
     protocol `Protocol` {
         func combine(
             _ first: consuming Token,
@@ -118,7 +110,6 @@ struct LinearPair: LinearPair.`Protocol` {
 
 @Interface
 struct Observation: Observation.`Protocol` {
-    @Operations(composed: true)
     protocol `Protocol` {
         func inspect(_ value: borrowing Int) -> Int
     }
@@ -126,7 +117,6 @@ struct Observation: Observation.`Protocol` {
 
 @Interface
 struct Owned: Owned.`Protocol` {
-    @Operations(composed: true)
     protocol `Protocol` {
         func consume(_ value: consuming Int) -> Int
     }

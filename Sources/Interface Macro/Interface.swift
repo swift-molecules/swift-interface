@@ -13,9 +13,10 @@
 // Copyable calls expose their derived prisms through dynamic member lookup, so
 // optional key paths compose case extraction with input access: `\.delete?.id`.
 @attached(member, names: arbitrary)
-@attached(extension, conformances: Interface.Primary, Interface.Evaluating, Constructible)
-/// Set defaults to true for a product whose children each provide init().
-public macro Interface(defaults: Bool = false) = #externalMacro(
+@attached(extension, conformances: Interface.Primary)
+/// Compose operations, their implementation product, and their call coproduct.
+/// Input capabilities are explicitly forwarded to the operation derivation.
+public macro Interface(inputConformances: [String] = [], inputAttributes: String...) = #externalMacro(
     module: "Interface_Macro_Plugin",
     type: "Macro"
 )

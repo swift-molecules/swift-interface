@@ -33,7 +33,7 @@ let package = Package(
     targets: [
         .target(
             name: "Interface Dependencies",
-            dependencies: ["Interface Macro", "Interface Macro Plugin", .product(name: "Dependencies", package: "swift-dependencies"), .product(name: "IssueReporting", package: "swift-issue-reporting")]
+            dependencies: ["Interface Macro", .product(name: "Dependencies", package: "swift-dependencies"), .product(name: "IssueReporting", package: "swift-issue-reporting")]
         ),
         .target(
             name: "Interface Syntax",
@@ -47,6 +47,7 @@ let package = Package(
         .target(
             name: "Interface Macro Core",
             dependencies: [
+                .product(name: "Operation Macro Core", package: "swift-operation"),
                 .product(name: "Type Algebra Syntax", package: "swift-algebra"),
                 "Interface Syntax",
                 .product(name: "Operation Syntax", package: "swift-operation"),
@@ -59,8 +60,7 @@ let package = Package(
             name: "Interface Macro Plugin",
             dependencies: [
                 .product(name: "Operation Macro Core", package: "swift-operation"),
-                .product(name: "Finite Macro Core", package: "swift-finite"),
-                "Interface Macro Core",
+                                "Interface Macro Core",
                 .product(name: "Type Algebra Syntax", package: "swift-algebra"),
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
                 .product(name: "SwiftSyntax", package: "swift-syntax"),

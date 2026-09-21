@@ -13,7 +13,6 @@ enum Store {
 
     @Interface
     struct Items: Items.`Protocol` {
-        @Operations(composed: true)
         protocol `Protocol` {
             func add(_ item: Store.Item) throws(Store.Failure) -> Int
             func remove(_ item: Store.Item, replacement: Store.Item) throws
@@ -23,7 +22,6 @@ enum Store {
 
     @Interface
     struct Removal: Removal.Interface {
-        @Operations(composed: true)
         protocol Interface {
             func callAsFunction(_ item: Store.Item) throws(Store.Failure)
             func callAsFunction(today: String) -> Int
@@ -34,7 +32,6 @@ enum Store {
 
     @Interface
     struct Root: Root.`Protocol` {
-        @Operations(composed: true)
         protocol `Protocol` {
             associatedtype Items: Store.Items.`Protocol`
 
