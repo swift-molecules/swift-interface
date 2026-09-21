@@ -1,5 +1,3 @@
-import Dependencies
-public import Interface_Macro
 import IssueReporting
 
 /// Every use reports an issue. Only explicitly supported output shapes have
