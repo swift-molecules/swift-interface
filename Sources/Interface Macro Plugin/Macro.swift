@@ -15,9 +15,7 @@ public struct Macro: MemberMacro, ExtensionMacro {
     ) throws -> [ExtensionDeclSyntax] {
         guard let owner = declaration.as(StructDeclSyntax.self), let semantic = Self.semantic(of: owner) else { return [] }
         let signature = try Self.analysis(of: semantic, owner: TypeSyntax(type))
-        var conformances: [String] = []
-        if signature.run != nil { conformances.append("Interface_Macro.Interface.Primary") }
-        guard !conformances.isEmpty else { return [] }
+        let conformances = ["Interface_Macro.Interface.Structured"] + (signature.run == nil ? [] : ["Interface_Macro.Interface.Primary"])
         return [try ExtensionDeclSyntax("extension \(type): \(raw: conformances.joined(separator: ", ")) {}")]
     }
 

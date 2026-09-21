@@ -77,6 +77,8 @@ extension Interface {
 
         // A child coordinate is a typed projection of the existing owner, not another
         // model of its operations. Interpreters can select it without parsing imported syntax.
+        // The structure also lists the operations whose sorts are values (the compiler decides which, through
+        // Valuation) and the children, in declaration order, so that a reader can fold over an interface at runtime.
         private static func structure(of signature: Interface.Analysis, access: String) -> DeclSyntax {
             let owner = signature.owner.trimmedDescription
             let children = signature.children.map { child in
@@ -84,15 +86,27 @@ extension Interface {
                 \(access)enum \(child.name.trimmedDescription): Interface_Macro.Interface.Member {
                     \(access)typealias Owner = \(owner)
                     \(access)typealias Value = \(child.domain.trimmedDescription)
+                    \(access)static var name: Swift.String { \(String(reflecting: Self.spelled(child.name))) }
                     \(access)static var path: Swift.WritableKeyPath<Owner, Value> { \\.\(child.name.trimmedDescription) }
                 }
                 """
             }.joined(separator: "\n")
+            let operations = signature.symbols.map { "Operation::Operation.Valuation<\(owner).\($0.name)>.valued" }
+            let members = signature.children.map { "Self.\($0.name.trimmedDescription).self" }
             return DeclSyntax(stringLiteral: """
-                \(access)enum Structure {
+                \(access)enum Structure: Interface_Macro.Interface.Structure {
+                    \(access)typealias Owner = \(owner)
+                    \(access)static var operations: [any Operation::Operation.Valued<Owner>.Type] { [\(operations.joined(separator: ", "))].compactMap { $0 } }
+                    \(access)static var children: [any Interface_Macro.Interface.Member<Owner>.Type] { [\(members.joined(separator: ", "))] }
                 \(children)
                 }
                 """)
+        }
+
+        // A declared name without the backticks that made it an identifier.
+        private static func spelled(_ name: TokenSyntax) -> String {
+            let text = name.text
+            return text.hasPrefix("`") && text.hasSuffix("`") ? String(text.dropFirst().dropLast()) : text
         }
 
         // The primary operation is the interface itself: `Reminders.Update.Input` is `Reminders.Update.Run.Input`.

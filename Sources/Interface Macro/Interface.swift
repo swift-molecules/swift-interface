@@ -13,7 +13,7 @@
 // Copyable calls expose their derived prisms through dynamic member lookup, so
 // optional key paths compose case extraction with input access: `\.delete?.id`.
 @attached(member, names: arbitrary)
-@attached(extension, conformances: Interface.Primary)
+@attached(extension, conformances: Interface.Structured, Interface.Primary)
 /// Compose operations, their implementation product, and their call coproduct.
 /// Input capabilities are explicitly forwarded to the operation derivation.
 public macro Interface(inputConformances: [String] = [], inputAttributes: String...) = #externalMacro(
