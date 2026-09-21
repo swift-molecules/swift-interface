@@ -18,6 +18,8 @@ let package = Package(
         .library(name: "Interface Macro", targets: ["Interface Macro"]),
     ],
     dependencies: [
+        .package(url: "https://github.com/swift-atoms/swift-functor.git", branch: "main"),
+        .package(url: "https://github.com/swift-atoms/swift-finite.git", branch: "main"),
         .package(url: "https://github.com/swift-atoms/swift-algebra.git", branch: "main"),
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.0.0"),
         .package(url: "https://github.com/pointfreeco/swift-issue-reporting", from: "2.1.0"),
@@ -49,6 +51,8 @@ let package = Package(
         .macro(
             name: "Interface Macro Plugin",
             dependencies: [
+                .product(name: "Operation Macro Core", package: "swift-operation"),
+                .product(name: "Finite Macro Core", package: "swift-finite"),
                 "Interface Macro Core",
                 .product(name: "Type Algebra Syntax", package: "swift-algebra"),
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax"),
@@ -60,6 +64,8 @@ let package = Package(
         .target(
             name: "Interface Macro",
             dependencies: [
+                .product(name: "Finite Macro", package: "swift-finite"),
+                .product(name: "Representable Macro", package: "swift-functor"),
                 "Interface Macro Plugin",
                 .product(name: "Case Macro", package: "swift-optic"),
                 .product(name: "Eliminator Macro", package: "swift-coproduct"),
@@ -75,6 +81,7 @@ let package = Package(
             dependencies: [
                 "Interface Macro",
                 "Interface Macro Core",
+                .product(name: "Finite Macro", package: "swift-finite"),
                 .product(name: "Operation Syntax", package: "swift-operation"),
                 .product(name: "Product Macro", package: "swift-product"),
                 .product(name: "Product Syntax", package: "swift-product"),

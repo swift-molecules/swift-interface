@@ -1,10 +1,12 @@
+import Operation_Macro_Core
+import Finite_Macro_Core
 import Type_Algebra_Syntax
 import Interface_Macro_Core
 import SwiftSyntax
 import SwiftSyntaxBuilder
 import SwiftSyntaxMacros
 
-public struct Macro: MemberMacro, MemberAttributeMacro, ExtensionMacro {
+public struct Macro: MemberMacro, ExtensionMacro {
     public static func expansion(
         of node: AttributeSyntax,
         attachedTo declaration: some DeclGroupSyntax,
@@ -45,20 +47,47 @@ public struct Macro: MemberMacro, MemberAttributeMacro, ExtensionMacro {
             else { return nil }
             return member.baseType.trimmed
         }.first ?? TypeSyntax(IdentifierTypeSyntax(name: owner.name.trimmed))
-        return Interface.Derivation.members(of: try Self.analysis(of: semantic, owner: name), sendable: Type.Syntax.Conformance.contains("Sendable", in: owner))
+        let analysis = try Self.analysis(of: semantic, owner: name)
+        let members = Interface.Derivation.members(of: analysis, sendable: Type.Syntax.Conformance.contains("Sendable", in: owner))
+        // Explicit @Operations remains an override. Otherwise the composition
+        // owns the capabilities of its generated input records.
+        guard !Self.hasOperations(semantic) else { return members }
+        return members + Operation.Derivation.peers(of: Operation.Analysis(declaration: semantic, owner: name, isComposed: true)).map(Self.decorateInputs)
     }
 
-    public static func expansion(
-        of node: AttributeSyntax,
-        attachedTo declaration: some DeclGroupSyntax,
-        providingAttributesFor member: some DeclSyntaxProtocol,
-        in context: some MacroExpansionContext
-    ) throws -> [AttributeSyntax] {
-        guard let semantic = member.as(ProtocolDeclSyntax.self), Self.isSemantic(semantic) else { return [] }
-        let exists = semantic.attributes.contains {
+    private static func hasOperations(_ declaration: ProtocolDeclSyntax) -> Bool {
+        declaration.attributes.contains {
             $0.as(AttributeSyntax.self)?.attributeName.trimmedDescription == "Operations"
         }
-        return exists ? [] : [AttributeSyntax(stringLiteral: "@Operations(composed: true)")]
+    }
+
+    private static func decorateInputs(_ declaration: DeclSyntax) -> DeclSyntax {
+        guard var symbol = declaration.as(EnumDeclSyntax.self) else { return declaration }
+        symbol.memberBlock.members = MemberBlockItemListSyntax(symbol.memberBlock.members.map(Self.decorateInput))
+        return DeclSyntax(symbol)
+    }
+
+    private static func decorateInput(_ member: MemberBlockItemSyntax) -> MemberBlockItemSyntax {
+        guard var input = member.decl.as(StructDeclSyntax.self), input.name.text == "Input",
+            !(input.inheritanceClause?.trimmedDescription.contains("~Copyable") ?? false) else { return member }
+        let fields = Type.Syntax.Properties(input).fields
+        if Finite_Macro_Core.Derivation.supportsAutomaticEnumeration(of: input) {
+            input.attributes.append(.attribute(AttributeSyntax(stringLiteral: "@Finite")))
+            var inherited = input.inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
+            inherited += ["Finite::Finite.Enumerable", "Swift.CaseIterable"]
+            input.inheritanceClause = InheritanceClauseSyntax(inheritedTypes: InheritedTypeListSyntax(
+                inherited.enumerated().map { offset, name in
+                    InheritedTypeSyntax(type: TypeSyntax(stringLiteral: name), trailingComma: offset + 1 < inherited.count ? .commaToken() : nil)
+                }
+            ))
+        }
+        if !fields.contains(where: { ["values", "Index", "index", "tabulate"].contains(String($0.name.filter { $0 != "`" })) }),
+            let first = fields.first, fields.allSatisfy({ $0.type.trimmedDescription == first.type.trimmedDescription }) {
+            input.attributes.append(.attribute(AttributeSyntax(stringLiteral: "@Representable")))
+        }
+        var result = member
+        result.decl = DeclSyntax(input)
+        return result
     }
 
     private static func conformsToSemantic(_ owner: StructDeclSyntax) -> Bool {

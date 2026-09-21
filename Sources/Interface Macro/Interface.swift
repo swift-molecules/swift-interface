@@ -1,3 +1,5 @@
+@_exported import Finite_Macro
+@_exported import Representable_Macro
 @_exported import Case_Macro
 @_exported import Eliminator_Macro
 @_exported import Fold_Macro
@@ -6,12 +8,11 @@
 @_exported import Prism_Macro
 @_exported import Product_Macro
 
-// Attaches @Operations to the semantic protocol and @Product to the generated model,
+// Composes operation derivation and @Product on the generated model,
 // then connects their canonical output with one Call and its interpreter.
 // Copyable calls expose their derived prisms through dynamic member lookup, so
 // optional key paths compose case extraction with input access: `\.delete?.id`.
 @attached(member, names: arbitrary)
-@attached(memberAttribute)
 @attached(extension, conformances: Interface.Primary, Constructible)
 public macro Interface() = #externalMacro(
     module: "Interface_Macro_Plugin",

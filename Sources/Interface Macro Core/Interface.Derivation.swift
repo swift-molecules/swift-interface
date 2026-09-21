@@ -234,13 +234,21 @@ extension Interface {
             let cases = zip(requests.fields, parameters).map { "case \($0.name)(\($1))" }
             let constructors = leaves.map { leaf in
                 let symbol = leaf.symbol
+                let used = Set(symbol.inputs.map { $0.parameter.localName.text })
+                var inputName = "_input"
+                while used.contains(inputName) || used.contains("`" + inputName + "`") { inputName = "_" + inputName }
+                var applicationName = "_application"
+                while used.contains(applicationName) || used.contains("`" + applicationName + "`") { applicationName = "_" + applicationName }
                 return """
                 \(access)static func \(symbol.caseName)\(symbol.signature.declaration.signature.parameterClause.trimmedDescription) -> Self {
-                    Self.\(symbol.caseName)(\(leaf.parameter)(\(symbol.inputPath(owner: owner))(\(symbol.construction))))
+                    let \(inputName): \(symbol.inputPath(owner: owner)) = \(symbol.inputPath(owner: owner))(\(symbol.construction))
+                    let \(applicationName): \(leaf.parameter) = \(leaf.parameter)(\(inputName))
+                    return Self.\(symbol.caseName)(\(applicationName))
                 }
 
                 \(access)static func \(symbol.caseName)(_ input: \(symbol.inputParameter(owner: owner))) -> Self {
-                    Self.\(symbol.caseName)(\(leaf.parameter)(input))
+                    let application: \(leaf.parameter) = \(leaf.parameter)(input)
+                    return Self.\(symbol.caseName)(application)
                 }
                 """
             }
@@ -340,9 +348,10 @@ extension Interface {
 
                         // Effects policy: running a Call is always `async throws`, the widest of its arms.
                         \(access)static func run(_ owner: \(owner), _ call: consuming Self) async throws {
-                            try await Eliminator<Void>(
+                            let eliminate: Eliminator<Void> = Eliminator<Void>(
                     \(arms.joined(separator: ",\n"))
-                            )(call)
+                            )
+                            try await eliminate(call)
                         }
                     }
                     """),
