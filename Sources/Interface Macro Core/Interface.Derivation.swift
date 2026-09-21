@@ -202,7 +202,7 @@ extension Interface {
         ) -> DeclSyntax {
             DeclSyntax(stringLiteral: """
                 \(access)func callAsFunction(_ call: consuming Call) async throws {
-                    try await Call.run(self, call)
+                    \(signature.symbols.isEmpty && signature.children.isEmpty ? "" : "try await Call.run(self, call)")
                 }
                 """)
         }
@@ -289,7 +289,7 @@ extension Interface {
             let arms = leaves.map { leaf -> String in
                 """
                 \(leaf.symbol.caseName): { (application: consuming \(leaf.parameter)) async throws -> Void in
-                    _ = \(leaf.symbol.prefix)\(owner).\(leaf.symbol.name).run(owner, application.consume())
+                    \(leaf.symbol.signature.returnsVoid ? "" : "_ = ")\(leaf.symbol.prefix)\(owner).\(leaf.symbol.name).run(owner, application.consume())
                 }
                 """
             } + childParameters.map { entry in
@@ -357,10 +357,7 @@ extension Interface {
 
                         // Effects policy: running a Call is always `async throws`, the widest of its arms.
                         \(access)static func run(_ owner: \(owner), _ call: consuming Self) async throws {
-                            let eliminate: Eliminator<Void> = Eliminator<Void>(
-                    \(arms.joined(separator: ",\n"))
-                            )
-                            try await eliminate(call)
+                            \(arms.isEmpty ? "" : "let eliminate: Eliminator<Void> = Eliminator<Void>(\(arms.joined(separator: ",\n")))\ntry await eliminate(call)")
                         }
                     }
                     """),
