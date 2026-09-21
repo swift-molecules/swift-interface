@@ -13,10 +13,13 @@ let package = Package(
         .visionOS(.v27),
     ],
     products: [
+        .library(name: "Interface Dependencies", targets: ["Interface Dependencies"]),
         .library(name: "Interface Syntax", targets: ["Interface Syntax"]),
         .library(name: "Interface Macro", targets: ["Interface Macro"]),
     ],
     dependencies: [
+        .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.0.0"),
+        .package(url: "https://github.com/pointfreeco/swift-issue-reporting", from: "2.1.0"),
         .package(url: "https://github.com/swift-atoms/swift-optic.git", branch: "main"),
         .package(url: "https://github.com/swift-atoms/swift-operation.git", branch: "main"),
         .package(url: "https://github.com/swift-atoms/swift-coproduct.git", branch: "main"),
@@ -24,6 +27,7 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-syntax.git", "603.0.2"..<"604.0.0"),
     ],
     targets: [
+        .target(name: "Interface Dependencies", dependencies: ["Interface Macro", "Interface Macro Plugin", .product(name: "Dependencies", package: "swift-dependencies"), .product(name: "IssueReporting", package: "swift-issue-reporting")]),
         .target(name: "Interface Syntax", dependencies: [
             .product(name: "Operation Syntax", package: "swift-operation"),
             .product(name: "Product Syntax", package: "swift-product"),

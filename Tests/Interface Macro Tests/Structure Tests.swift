@@ -15,7 +15,7 @@ import Testing
     #expect(child(41) == 42)
 }
 
-private func invokePrimary<Domain: InterfacePrimary>(
+private func invokePrimary<Domain: Interface.Primary>(
     _ domain: Domain, _ input: consuming Domain.Primary.Input
 ) async throws -> Domain.Primary.Output {
     try await Domain.Primary.run(domain, input)
