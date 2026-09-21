@@ -18,6 +18,7 @@ let package = Package(
         .library(name: "Interface Macro", targets: ["Interface Macro"]),
     ],
     dependencies: [
+        .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.0.0"),
         .package(url: "https://github.com/swift-atoms/swift-functor.git", branch: "main"),
         .package(url: "https://github.com/swift-atoms/swift-finite.git", branch: "main"),
         .package(url: "https://github.com/swift-atoms/swift-algebra.git", branch: "main"),
@@ -81,10 +82,7 @@ let package = Package(
             dependencies: [
                 "Interface Macro",
                 "Interface Macro Core",
-                .product(name: "Finite Macro", package: "swift-finite"),
-                .product(name: "Operation Syntax", package: "swift-operation"),
-                .product(name: "Product Macro", package: "swift-product"),
-                .product(name: "Product Syntax", package: "swift-product"),
+                .product(name: "CustomDump", package: "swift-custom-dump"),
                 .product(name: "SwiftParser", package: "swift-syntax"),
             ],
             resources: [.copy("Fixtures")]

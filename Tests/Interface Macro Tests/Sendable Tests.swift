@@ -37,5 +37,3 @@ private struct Producer: Producer.Interface, Sendable {
 
 // Capabilities are declared using Swift protocols at the point of use.
 extension SendingDomain.Run.Input: Hashable, Sendable {}
-extension Factory.Run.Input: Hashable, Sendable {}
-extension Producer.Run.Input: Hashable, Sendable {}

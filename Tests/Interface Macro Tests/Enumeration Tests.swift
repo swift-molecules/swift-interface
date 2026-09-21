@@ -15,7 +15,6 @@ struct FiniteAssessment: FiniteAssessment.Interface, Sendable {
     }
 }
 
-extension FiniteAssessment.`het bezit rechtspersoonlijkheid`.Input: Sendable {}
 
 @Test private func generatedInputsHaveExhaustiveFiniteEnumeration() {
     typealias Input = FiniteAssessment.`het bezit rechtspersoonlijkheid`.Input

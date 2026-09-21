@@ -16,7 +16,7 @@ public struct Macro: MemberMacro, ExtensionMacro {
     ) throws -> [ExtensionDeclSyntax] {
         guard let owner = declaration.as(StructDeclSyntax.self), let semantic = Self.semantic(of: owner) else { return [] }
         let signature = try Self.analysis(of: semantic, owner: TypeSyntax(type))
-        var conformances: [String] = ["Interface_Macro.Constructible"]
+        var conformances: [String] = ["Interface_Macro.Constructible", "Interface_Macro.Interface.Evaluating"]
         if signature.run != nil { conformances.append("Interface_Macro.Interface.Primary") }
         guard !conformances.isEmpty else { return [] }
         return [try ExtensionDeclSyntax("extension \(type): \(raw: conformances.joined(separator: ", ")) {}")]
@@ -48,7 +48,18 @@ public struct Macro: MemberMacro, ExtensionMacro {
             return member.baseType.trimmed
         }.first ?? TypeSyntax(IdentifierTypeSyntax(name: owner.name.trimmed))
         let analysis = try Self.analysis(of: semantic, owner: name)
-        let members = Interface.Derivation.members(of: analysis, sendable: Type.Syntax.Conformance.contains("Sendable", in: owner))
+        let defaults: Bool
+        if case let .argumentList(arguments) = node.arguments,
+            let argument = arguments.first(where: { $0.label?.text == "defaults" }) {
+            guard let literal = argument.expression.as(BooleanLiteralExprSyntax.self) else {
+                throw MacroExpansionErrorMessage("@Interface defaults must be a Boolean literal")
+            }
+            defaults = literal.literal.text == "true"
+        } else { defaults = false }
+        guard !defaults || (analysis.symbols.isEmpty && !analysis.children.isEmpty) else {
+            throw MacroExpansionErrorMessage("@Interface(defaults: true) requires a nonempty product of children with init()")
+        }
+        let members = Interface.Derivation.members(of: analysis, sendable: Type.Syntax.Conformance.contains("Sendable", in: owner), defaultChildren: defaults)
         // Explicit @Operations remains an override. Otherwise the composition
         // owns the capabilities of its generated input records.
         guard !Self.hasOperations(semantic) else { return members }
@@ -74,7 +85,9 @@ public struct Macro: MemberMacro, ExtensionMacro {
         if Finite_Macro_Core.Derivation.supportsAutomaticEnumeration(of: input) {
             input.attributes.append(.attribute(AttributeSyntax(stringLiteral: "@Finite")))
             var inherited = input.inheritanceClause?.inheritedTypes.map { $0.type.trimmedDescription } ?? []
-            inherited += ["Finite::Finite.Enumerable", "Swift.CaseIterable"]
+            // Only the closed Bool/Optional/empty shapes recognized by Finite are
+            // opted in automatically. Unknown nominal types keep explicit capabilities.
+            inherited += ["Finite::Finite.Enumerable", "Swift.CaseIterable", "Swift.Hashable", "Swift.Sendable"]
             input.inheritanceClause = InheritanceClauseSyntax(inheritedTypes: InheritedTypeListSyntax(
                 inherited.enumerated().map { offset, name in
                     InheritedTypeSyntax(type: TypeSyntax(stringLiteral: name), trailingComma: offset + 1 < inherited.count ? .commaToken() : nil)
