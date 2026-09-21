@@ -31,13 +31,19 @@ let package = Package(
         .package(url: "https://github.com/swiftlang/swift-syntax.git", "603.0.2"..<"604.0.0"),
     ],
     targets: [
-        .target(name: "Interface Dependencies", dependencies: ["Interface Macro", "Interface Macro Plugin", .product(name: "Dependencies", package: "swift-dependencies"), .product(name: "IssueReporting", package: "swift-issue-reporting")]),
-        .target(name: "Interface Syntax", dependencies: [
+        .target(
+            name: "Interface Dependencies",
+            dependencies: ["Interface Macro", "Interface Macro Plugin", .product(name: "Dependencies", package: "swift-dependencies"), .product(name: "IssueReporting", package: "swift-issue-reporting")]
+        ),
+        .target(
+            name: "Interface Syntax",
+            dependencies: [
                 .product(name: "Type Algebra Syntax", package: "swift-algebra"),
-            .product(name: "Operation Syntax", package: "swift-operation"),
-            .product(name: "Product Syntax", package: "swift-product"),
-            .product(name: "SwiftSyntax", package: "swift-syntax"),
-        ]),
+                .product(name: "Operation Syntax", package: "swift-operation"),
+                .product(name: "Product Syntax", package: "swift-product"),
+                .product(name: "SwiftSyntax", package: "swift-syntax"),
+            ]
+        ),
         .target(
             name: "Interface Macro Core",
             dependencies: [
