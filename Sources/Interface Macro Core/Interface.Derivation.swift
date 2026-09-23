@@ -42,7 +42,7 @@ extension Interface {
             return Self.operations(of: signature, access: access, inputAttributes: inputAttributes, inputConformances: inputConformances) + [model.declaration]
                 + (try Self.witnesses(of: signature, model: model, owner: owner, access: access, sendable: sendable))
                 + Self.primary(of: signature, access: access)
-                + [Self.structure(of: signature, access: access)]
+                + Self.structure(of: signature, access: access)
                 + [Self.interpreter(of: signature, access: access)]
                 + Self.call(of: signature, requests: requests, access: access)
         }
@@ -75,11 +75,10 @@ extension Interface {
             }
         }
 
-        // A child coordinate is a typed projection of the existing owner, not another
-        // model of its operations. Interpreters can select it without parsing imported syntax.
-        // The structure also lists the operations whose sorts are values (the compiler decides which, through
-        // Valuation) and the children, in declaration order, so that a reader can fold over an interface at runtime.
-        private static func structure(of signature: Interface.Analysis, access: String) -> DeclSyntax {
+        // A child coordinate is a typed projection of the existing owner, not another model of its operations.
+        // Interpreters select it without parsing imported syntax. `Members` lists the coordinates as types, in
+        // declaration order, so that a reader folds over the interface with conformances the compiler checks.
+        private static func structure(of signature: Interface.Analysis, access: String) -> [DeclSyntax] {
             let owner = signature.owner.trimmedDescription
             let children = signature.children.map { child in
                 """
@@ -91,16 +90,17 @@ extension Interface {
                 }
                 """
             }.joined(separator: "\n")
-            let operations = signature.symbols.map { "Operation::Operation.Valuation<\(owner).\($0.name)>.valued" }
-            let members = signature.children.map { "Self.\($0.name.trimmedDescription).self" }
-            return DeclSyntax(stringLiteral: """
-                \(access)enum Structure: Interface_Macro.Interface.Structure {
-                    \(access)typealias Owner = \(owner)
-                    \(access)static var operations: [any Operation::Operation.Valued<Owner>.Type] { [\(operations.joined(separator: ", "))].compactMap { $0 } }
-                    \(access)static var children: [any Interface_Macro.Interface.Member<Owner>.Type] { [\(members.joined(separator: ", "))] }
-                \(children)
-                }
-                """)
+            let members = signature.children.reversed().reduce("Interface_Macro.Interface.Empty<\(owner)>") { table, child in
+                "Interface_Macro.Interface.Cons<\(owner).Structure.\(child.name.trimmedDescription), \(table)>"
+            }
+            return [
+                DeclSyntax(stringLiteral: """
+                    \(access)enum Structure {
+                    \(children)
+                    }
+                    """),
+                DeclSyntax(stringLiteral: "\(access)typealias Members = \(members)"),
+            ]
         }
 
         // A declared name without the backticks that made it an identifier.

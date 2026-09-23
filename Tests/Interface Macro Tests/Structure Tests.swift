@@ -30,38 +30,24 @@ private func invokePrimary<Domain: Interface.Primary>(
 // Capabilities are declared using Swift protocols at the point of use.
 extension StructureLeaf.Run.Input: Hashable, Sendable {}
 
-@Interface private struct StructureTransfer: StructureTransfer.Interface {
-    struct Token: ~Copyable { let value: Int }
-    protocol Interface {
-        func keep(_ token: consuming Token) -> Int
-        func count() -> Int
-    }
+// A reader of the table folds over its types: here, the children's names, in declaration order.
+private protocol Named {
+    static var names: [String] { get }
 }
 
-private func operationNames<Owner: Interface.Structured>(_: Owner.Type) -> [String] {
-    Owner.Structure.operations.map { name($0) }
+extension Interface.Empty: Named {
+    static var names: [String] { [] }
 }
 
-private func name<Listed: Operation.Valued>(_: Listed.Type) -> String {
-    "\(Listed.Symbol.self)".split(separator: ".").last.map(String.init) ?? ""
+extension Interface.Cons: Named where Head: Interface.Member, Tail: Named {
+    static var names: [String] { [Head.name] + Tail.names }
 }
 
-private func run<Listed: Operation.Valued>(_ listed: Listed.Type, on owner: Listed.Owner) async throws -> Listed.Symbol.Output? {
-    guard let input = (Listed.Symbol.Input.self as? any Operation.Nullary.Type)?.init() as? Listed.Symbol.Input else { return nil }
-    return try await Listed.Symbol.run(owner, input)
+private func names<Owner: Interface.Structured>(_: Owner.Type) -> [String] where Owner.Members: Named {
+    Owner.Members.names
 }
 
-@Test func structureListsOperationsAndChildrenInDeclarationOrder() {
-    #expect(StructureOwner.Structure.operations.isEmpty)
-    #expect(StructureOwner.Structure.children.map { $0.name } == ["differentlyNamed"])
-    #expect(operationNames(StructureLeaf.self) == ["Run"])
-    #expect(StructureLeaf.Structure.children.isEmpty)
-}
-
-@Test func structureListsOnlyOperationsWhoseSortsAreValues() async throws {
-    #expect(operationNames(StructureTransfer.self) == ["Count"])
-    let domain = StructureTransfer(keep: { _ in 1 }, count: { _ in 7 })
-    let count = try #require(StructureTransfer.Structure.operations.first)
-    let counted = try await run(count, on: domain)
-    #expect(counted as? Int == 7)
+@Test func `the table lists the children in declaration order`() {
+    #expect(names(StructureOwner.self) == ["differentlyNamed"])
+    #expect(names(StructureLeaf.self).isEmpty)
 }
