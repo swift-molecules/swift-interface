@@ -17,6 +17,9 @@ let package = Package(
         .library(name: "Interface Syntax", targets: ["Interface Syntax"]),
         .library(name: "Interface Macro", targets: ["Interface Macro"]),
     ],
+    traits: [
+        .trait(name: "Dependencies", description: "Dependencies integration"),
+    ],
     dependencies: [
         .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.0.0"),
         .package(url: "https://github.com/swift-atoms/swift-functor.git", branch: "main"),
@@ -33,7 +36,11 @@ let package = Package(
     targets: [
         .target(
             name: "Interface Dependencies",
-            dependencies: ["Interface Macro", .product(name: "Dependencies", package: "swift-dependencies"), .product(name: "IssueReporting", package: "swift-issue-reporting")]
+            dependencies: [
+                "Interface Macro",
+                .product(name: "Dependencies", package: "swift-dependencies", condition: .when(traits: ["Dependencies"])),
+                .product(name: "IssueReporting", package: "swift-issue-reporting", condition: .when(traits: ["Dependencies"])),
+            ]
         ),
         .target(
             name: "Interface Syntax",

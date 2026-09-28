@@ -1,3 +1,4 @@
+#if Dependencies
 import IssueReporting
 
 /// Every use reports an issue. Only explicitly supported output shapes have
@@ -31,3 +32,4 @@ public enum Unimplemented {
         return AsyncStream { $0.finish() }
     }
 }
+#endif
